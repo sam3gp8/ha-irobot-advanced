@@ -14,6 +14,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Write support for `cleanSchedule2`, the newer room-aware schedule format
 - Replace heuristic UMF layer parsing once enough map samples are available
 
+## [0.3.0] — 2026-07-24
+
+### Added
+
+- **Dashboard card** (`custom:irobot-advanced-card`) with Control, Map,
+  Obstacles and History tabs — commands, suction level, per-room cleaning
+  chips, the live map, a clickable obstacle gallery, and recent mission
+  records.
+- **Sidebar panel** showing every configured robot on one page.
+- The card is served from the integration itself and registered as a frontend
+  module, so it appears in the Lovelace card picker with no separate plugin
+  install.
+- `sensor.*_total_missions` now carries a `recent_missions` attribute holding
+  the ten most recent runs, trimmed to the fields the card renders.
+
+## [0.2.2] — 2026-07-24
+
+### Fixed
+
+- `OptionsFlow` no longer assigns `self.config_entry` in its constructor. That
+  attribute is a read-only property on current Home Assistant releases, so
+  opening the integration's options raised `AttributeError` — the same class of
+  bug as the coordinator's `name` in 0.2.1.
+- Discovery service-info imports fall back to their pre-2025.1 locations
+  instead of raising at import time, which surfaced in the UI as
+  "Config flow could not be loaded: 500 Internal Server Error".
+
+### Changed
+
+- Minimum Home Assistant version corrected to **2025.1**. The previous floor of
+  2024.10 was wrong: `VacuumActivity` and the `helpers.service_info` modules
+  both arrived in 2025.1.
+
+### Notes
+
+- Upgrading in place can leave stale bytecode behind. If setup fails with a
+  traceback whose line numbers don't match the installed files, remove
+  `custom_components/irobot_advanced/__pycache__/` and fully restart Home
+  Assistant — reloading the integration is not sufficient.
+
 ## [0.2.1] — 2026-07-24
 
 ### Fixed
@@ -101,7 +141,9 @@ Initial release.
 - `PROTOCOL.md` documenting the discovery, MQTT, map, schedule and live-view
   protocols.
 
-[Unreleased]: https://github.com/sam3gp8/ha-irobot-advanced/compare/v0.2.1...HEAD
+[Unreleased]: https://github.com/sam3gp8/ha-irobot-advanced/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/sam3gp8/ha-irobot-advanced/compare/v0.2.2...v0.3.0
+[0.2.2]: https://github.com/sam3gp8/ha-irobot-advanced/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/sam3gp8/ha-irobot-advanced/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/sam3gp8/ha-irobot-advanced/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/sam3gp8/ha-irobot-advanced/releases/tag/v0.1.0

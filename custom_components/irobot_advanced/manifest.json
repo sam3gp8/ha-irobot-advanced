@@ -1,23 +1,47 @@
 {
   "domain": "irobot_advanced",
   "name": "iRobot Advanced",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "documentation": "https://github.com/sam3gp8/ha-irobot-advanced",
   "issue_tracker": "https://github.com/sam3gp8/ha-irobot-advanced/issues",
-  "codeowners": ["@sam3gp8"],
+  "codeowners": [
+    "@sam3gp8"
+  ],
   "config_flow": true,
-  "dependencies": [],
+  "dependencies": [
+    "http",
+    "frontend",
+    "panel_custom"
+  ],
   "integration_type": "device",
   "iot_class": "local_push",
-  "requirements": ["paho-mqtt>=1.6.1", "Pillow>=10.0.0"],
+  "requirements": [
+    "paho-mqtt>=1.6.1",
+    "Pillow>=10.0.0"
+  ],
   "dhcp": [
-    { "hostname": "roomba-*" },
-    { "hostname": "irobot-*" },
-    { "hostname": "braava-*" }
+    {
+      "hostname": "roomba-*"
+    },
+    {
+      "hostname": "irobot-*"
+    },
+    {
+      "hostname": "braava-*"
+    }
   ],
   "zeroconf": [
-    { "type": "_mqtt._tcp.local.", "name": "roomba*" },
-    { "type": "_mqtt._tcp.local.", "name": "irobot*" },
-    { "type": "_mqtt._tcp.local.", "name": "braava*" }
+    {
+      "type": "_mqtt._tcp.local.",
+      "name": "roomba*"
+    },
+    {
+      "type": "_mqtt._tcp.local.",
+      "name": "irobot*"
+    },
+    {
+      "type": "_mqtt._tcp.local.",
+      "name": "braava*"
+    }
   ]
 }

@@ -49,7 +49,7 @@ Testing so far is limited. If your model works, or doesn't, please
 [open an issue](https://github.com/sam3gp8/ha-irobot-advanced/issues) with a
 diagnostics dump — it's the fastest way to widen support.
 
-Requires Home Assistant 2024.10 or newer.
+Requires Home Assistant 2025.1 or newer.
 
 ## Installation
 
@@ -117,6 +117,34 @@ This performs the robot's password exchange once and stores the result.
   address in place. A **Reconfigure** option exists for setting it by hand.
 - **Diagnostics** are available from the device page. Credentials, BLIDs, MAC
   addresses and network names are redacted.
+
+## Dashboard
+
+The integration ships its own interface — no extra HACS frontend plugin to
+install.
+
+**Sidebar panel.** An **iRobot** entry appears in the sidebar showing every
+configured robot side by side.
+
+**Dashboard card.** Add **iRobot Advanced** from the card picker, or by YAML:
+
+```yaml
+type: custom:irobot-advanced-card
+entity: vacuum.roomba   # optional — auto-detected if omitted
+```
+
+Four tabs:
+
+- **Control** — start, pause, stop, dock, locate, empty bin; suction level; a
+  chip per mapped room that starts a targeted clean; live status tiles
+- **Map** — the rendered map with the robot's current position, refreshed while
+  the tab is open
+- **Obstacles** — snapshot gallery with obstacle type, timestamp and map
+  coordinates; click to enlarge
+- **History** — recent missions with start time, duration, area and result
+
+The card is plain JavaScript with no build step and uses Home Assistant's CSS
+variables, so it follows your active theme.
 
 ## Entities
 

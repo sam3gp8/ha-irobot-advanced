@@ -94,6 +94,7 @@ SENSORS: tuple[IRobotSensorDescription, ...] = (
         state_class=SensorStateClass.TOTAL_INCREASING,
         entity_category=EntityCategory.DIAGNOSTIC,
         value_fn=lambda c: _run_stats(c, "nScrubs"),
+        attrs_fn=lambda c: {"recent_missions": _recent_missions(c)},
     ),
     IRobotSensorDescription(
         key="total_runtime",
@@ -148,6 +149,27 @@ SENSORS: tuple[IRobotSensorDescription, ...] = (
         },
     ),
 )
+
+
+def _recent_missions(coordinator: IRobotCoordinator) -> list[dict[str, Any]]:
+    """Trimmed mission records for the dashboard card.
+
+    Entity attributes are size-capped, so this keeps the ten most recent runs
+    and only the fields the card renders.
+    """
+    out: list[dict[str, Any]] = []
+    for mission in coordinator.missions[:10]:
+        out.append(
+            {
+                "id": mission.get("id") or mission.get("missionId"),
+                "start": mission.get("startTime") or mission.get("start_time"),
+                "duration": mission.get("duration") or mission.get("runtime"),
+                "area": mission.get("sqft") or mission.get("area"),
+                "status": mission.get("status") or mission.get("endStatus"),
+                "error": mission.get("error"),
+            }
+        )
+    return out
 
 
 def _schedule_summary(coordinator: IRobotCoordinator) -> str:

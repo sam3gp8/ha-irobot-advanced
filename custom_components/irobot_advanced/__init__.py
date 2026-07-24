@@ -24,6 +24,7 @@ from .const import (
     WEEKDAYS,
 )
 from .coordinator import IRobotCoordinator
+from .frontend import async_register_frontend, async_remove_frontend
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -113,6 +114,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     await coordinator.async_config_entry_first_refresh()
 
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = coordinator
+    await async_register_frontend(hass)
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
     _async_register_services(hass)
@@ -125,6 +127,8 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     if unloaded:
         coordinator: IRobotCoordinator = hass.data[DOMAIN].pop(entry.entry_id)
         await coordinator.async_stop()
+        if not hass.data[DOMAIN]:
+            async_remove_frontend(hass)
     return unloaded
 
 

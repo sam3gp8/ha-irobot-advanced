@@ -25,8 +25,12 @@ from homeassistant.config_entries import (
 from homeassistant.const import CONF_HOST, CONF_PASSWORD, CONF_USERNAME
 from homeassistant.core import callback
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
-from homeassistant.helpers.service_info.dhcp import DhcpServiceInfo
-from homeassistant.helpers.service_info.zeroconf import ZeroconfServiceInfo
+try:  # HA 2025.1+
+    from homeassistant.helpers.service_info.dhcp import DhcpServiceInfo
+    from homeassistant.helpers.service_info.zeroconf import ZeroconfServiceInfo
+except ImportError:  # pragma: no cover - older cores
+    from homeassistant.components.dhcp import DhcpServiceInfo
+    from homeassistant.components.zeroconf import ZeroconfServiceInfo
 
 from .auth import IRobotAuth, IRobotAuthError, InvalidCredentials
 from .const import (
@@ -485,14 +489,15 @@ class IRobotConfigFlow(ConfigFlow, domain=DOMAIN):
     @staticmethod
     @callback
     def async_get_options_flow(config_entry) -> OptionsFlow:  # noqa: ANN001
-        return IRobotOptionsFlow(config_entry)
+        return IRobotOptionsFlow()
 
 
 class IRobotOptionsFlow(OptionsFlow):
-    """Add or change cloud credentials after the fact."""
+    """Add or change cloud credentials after the fact.
 
-    def __init__(self, config_entry) -> None:  # noqa: ANN001
-        self.config_entry = config_entry
+    Note: no __init__. Home Assistant supplies `self.config_entry` itself, and
+    assigning to it raises on modern cores because it is a read-only property.
+    """
 
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
