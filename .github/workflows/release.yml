@@ -1,0 +1,31 @@
+name: Release
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set version from tag
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          jq --arg v "$VERSION" '.version = $v' \
+            custom_components/irobot_advanced/manifest.json > manifest.tmp
+          mv manifest.tmp custom_components/irobot_advanced/manifest.json
+
+      - name: Build release archive
+        run: |
+          cd custom_components/irobot_advanced
+          zip -r ../../irobot_advanced.zip . -x "*/__pycache__/*"
+
+      - name: Attach archive to release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: irobot_advanced.zip

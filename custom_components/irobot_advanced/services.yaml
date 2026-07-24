@@ -1,0 +1,76 @@
+clean_rooms:
+  name: Clean rooms
+  description: Start a cleaning run limited to specific mapped regions.
+  fields:
+    entity_id:
+      required: true
+      selector:
+        entity:
+          integration: irobot_advanced
+          domain: vacuum
+    regions:
+      name: Region IDs
+      required: true
+      example: "[3, 7]"
+      selector:
+        object:
+    pmap_id:
+      name: Map ID
+      description: Defaults to the first known map.
+      selector:
+        text:
+    two_pass:
+      name: Two passes
+      default: false
+      selector:
+        boolean:
+
+set_schedule:
+  name: Set schedule
+  description: Write the weekly cleaning schedule to the robot.
+  fields:
+    entity_id:
+      required: true
+      selector:
+        entity:
+          integration: irobot_advanced
+          domain: vacuum
+    schedule:
+      name: Schedule
+      required: true
+      example: "[{day: mon, enabled: true, hour: 9, minute: 30}]"
+      selector:
+        object:
+
+empty_bin:
+  name: Empty bin
+  description: Trigger an evacuation to the Clean Base.
+  fields:
+    entity_id:
+      required: true
+      selector:
+        entity:
+          integration: irobot_advanced
+          domain: vacuum
+
+locate_robot:
+  name: Locate robot
+  description: Make the robot announce itself.
+  fields:
+    entity_id:
+      required: true
+      selector:
+        entity:
+          integration: irobot_advanced
+          domain: vacuum
+
+refresh_maps:
+  name: Refresh maps
+  description: Force a cloud refresh of maps, history and obstacle snapshots.
+  fields:
+    entity_id:
+      required: true
+      selector:
+        entity:
+          integration: irobot_advanced
+          domain: vacuum

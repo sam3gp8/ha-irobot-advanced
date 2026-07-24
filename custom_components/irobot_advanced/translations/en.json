@@ -1,0 +1,268 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "How would you like to connect?",
+        "menu_options": {
+          "cloud": "iRobot account (recommended)",
+          "local": "Local only (manual pairing)"
+        }
+      },
+      "cloud": {
+        "title": "Sign in to iRobot",
+        "description": "Home Assistant signs in the same way the app does. It finds the login configuration automatically, then reads each robot's local key from your account — so there is no HOME-button pairing to do, and nothing to re-enter later.\n\nYour password is stored in the config entry so sessions can be renewed on their own.",
+        "data": {
+          "username": "Email",
+          "password": "Password",
+          "country_code": "Country code"
+        }
+      },
+      "pick_robot": {
+        "title": "Choose a robot",
+        "description": "Add one robot now; run the integration again to add the others.",
+        "data": {
+          "blid": "Robot"
+        }
+      },
+      "manual_host": {
+        "title": "Robot not found on this network",
+        "description": "It is in your account but did not answer the discovery broadcast. Enter its IP address.",
+        "data": {
+          "blid": "Robot",
+          "host": "IP address"
+        }
+      },
+      "local": {
+        "title": "Select your robot",
+        "description": "These robots answered the discovery broadcast on your network.",
+        "data": {
+          "host": "Robot"
+        }
+      },
+      "manual": {
+        "title": "Enter the robot's IP address",
+        "data": {
+          "host": "IP address"
+        }
+      },
+      "password": {
+        "title": "Pair with the robot",
+        "description": "Put {host} on its dock, then press and hold the HOME button until it plays a series of tones (about two seconds). Release it and submit this form within 30 seconds."
+      },
+      "reauth_confirm": {
+        "title": "Re-enter your iRobot password",
+        "description": "The password for {username} was rejected. Enter it again to restore cloud features.",
+        "data": {
+          "password": "Password"
+        }
+      },
+      "discovery_confirm": {
+        "title": "{name} found",
+        "description": "Found a robot at {host}. Sign in with your iRobot account to finish automatically, or pair it by hand using the HOME button.",
+        "menu_options": {
+          "cloud": "Sign in with my iRobot account",
+          "password": "Pair with the HOME button"
+        }
+      },
+      "reconfigure": {
+        "title": "Change IP address",
+        "description": "Use this if the robot moved to a different address.",
+        "data": {
+          "host": "IP address"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Could not reach the robot or the iRobot service.",
+      "invalid_auth": "That email and password combination was rejected.",
+      "not_in_pairing_mode": "The robot did not hand over a key. Hold HOME until it chimes, then try again.",
+      "no_blid": "Could not determine the robot's BLID.",
+      "no_robots": "That account has no robots registered to it.",
+      "unknown": "Something went wrong. Check the logs for details."
+    },
+    "abort": {
+      "already_configured": "This robot is already set up.",
+      "reauth_successful": "Signed back in.",
+      "reconfigure_successful": "Address updated.",
+      "no_blid": "Could not determine the robot's BLID from its hostname."
+    },
+    "flow_title": "{name}"
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "iRobot Advanced options",
+        "data": {
+          "enable_cloud": "Enable cloud features",
+          "username": "Email",
+          "password": "Password",
+          "country_code": "Country code",
+          "app_id": "App ID (advanced)"
+        }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "battery": {
+        "name": "Battery"
+      },
+      "phase": {
+        "name": "Phase"
+      },
+      "cycle": {
+        "name": "Cycle"
+      },
+      "error": {
+        "name": "Error"
+      },
+      "area_cleaned": {
+        "name": "Area cleaned"
+      },
+      "mission_minutes": {
+        "name": "Mission runtime"
+      },
+      "last_mission_start": {
+        "name": "Last mission start"
+      },
+      "total_missions": {
+        "name": "Total missions"
+      },
+      "total_runtime": {
+        "name": "Total runtime"
+      },
+      "wifi_signal": {
+        "name": "Wi-Fi signal"
+      },
+      "obstacle_count": {
+        "name": "Obstacle snapshots"
+      },
+      "map_count": {
+        "name": "Maps"
+      },
+      "schedule": {
+        "name": "Schedule"
+      }
+    },
+    "binary_sensor": {
+      "bin_full": {
+        "name": "Bin full"
+      },
+      "bin_present": {
+        "name": "Bin present"
+      },
+      "docked": {
+        "name": "Docked"
+      },
+      "error": {
+        "name": "Error"
+      },
+      "child_lock": {
+        "name": "Child lock"
+      },
+      "cloud_connected": {
+        "name": "Cloud connected"
+      }
+    },
+    "switch": {
+      "child_lock": {
+        "name": "Child lock"
+      },
+      "edge_clean": {
+        "name": "Edge clean"
+      },
+      "two_pass": {
+        "name": "Two passes"
+      },
+      "schedule_hold": {
+        "name": "Hold schedule"
+      },
+      "carpet_boost": {
+        "name": "Carpet boost"
+      }
+    },
+    "select": {
+      "room": {
+        "name": "Clean room"
+      }
+    },
+    "camera": {
+      "map": {
+        "name": "Map"
+      }
+    },
+    "image": {
+      "obstacle": {
+        "name": "Obstacle {index}"
+      }
+    }
+  },
+  "services": {
+    "clean_rooms": {
+      "name": "Clean rooms",
+      "description": "Start a cleaning run limited to specific mapped regions.",
+      "fields": {
+        "entity_id": {
+          "name": "Vacuum",
+          "description": "Target vacuum entity."
+        },
+        "regions": {
+          "name": "Region IDs",
+          "description": "List of region IDs from the map."
+        },
+        "pmap_id": {
+          "name": "Map ID",
+          "description": "Defaults to the first known map."
+        },
+        "two_pass": {
+          "name": "Two passes",
+          "description": "Run two passes over each region."
+        }
+      }
+    },
+    "set_schedule": {
+      "name": "Set schedule",
+      "description": "Write the weekly cleaning schedule to the robot.",
+      "fields": {
+        "entity_id": {
+          "name": "Vacuum",
+          "description": "Target vacuum entity."
+        },
+        "schedule": {
+          "name": "Schedule",
+          "description": "List of day/enabled/hour/minute entries."
+        }
+      }
+    },
+    "empty_bin": {
+      "name": "Empty bin",
+      "description": "Trigger an evacuation to the Clean Base.",
+      "fields": {
+        "entity_id": {
+          "name": "Vacuum",
+          "description": "Target vacuum entity."
+        }
+      }
+    },
+    "locate_robot": {
+      "name": "Locate robot",
+      "description": "Make the robot announce itself.",
+      "fields": {
+        "entity_id": {
+          "name": "Vacuum",
+          "description": "Target vacuum entity."
+        }
+      }
+    },
+    "refresh_maps": {
+      "name": "Refresh maps",
+      "description": "Force a cloud refresh of maps, history and obstacle snapshots.",
+      "fields": {
+        "entity_id": {
+          "name": "Vacuum",
+          "description": "Target vacuum entity."
+        }
+      }
+    }
+  }
+}
