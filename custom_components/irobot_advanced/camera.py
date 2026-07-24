@@ -41,7 +41,10 @@ async def async_setup_entry(
     hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
 ) -> None:
     coordinator: IRobotCoordinator = hass.data[DOMAIN][entry.entry_id]
-    async_add_entities([IRobotMapCamera(coordinator)])
+    entities: list[Camera] = [IRobotMapCamera(coordinator)]
+    if coordinator.live_view is not None:
+        entities.append(IRobotLiveCamera(coordinator))
+    async_add_entities(entities)
 
 
 class IRobotMapCamera(IRobotEntity, Camera):
@@ -78,7 +81,7 @@ class IRobotMapCamera(IRobotEntity, Camera):
                     if image:
                         self._cached = image
                         return image
-                except Exception as err:  # noqa: BLE001 - fall through to local render
+                except Exception as err:
                     _LOGGER.debug("Rendered map unavailable, drawing locally: %s", err)
 
         image = await self.hass.async_add_executor_job(self._render)
@@ -217,3 +220,87 @@ def _make_transform(bounds: tuple[float, float, float, float]):
         return (off_x + (x - min_x) * scale, CANVAS[1] - (off_y + (y - min_y) * scale))
 
     return transform
+
+
+class IRobotLiveCamera(IRobotEntity, Camera):
+    """Live camera feed over KVS WebRTC.
+
+    The robot streams as a KVS *master*; Home Assistant is a *viewer*. The
+    control-plane handshake (channel ARN, endpoints, ICE servers) is done by
+    :class:`~.live_view.LiveViewSession`. The actual media negotiation is the
+    KVS signalling exchange, which does not map onto Home Assistant's simple
+    offer/answer WebRTC provider -- the robot originates the offer over a
+    bidirectional WebSocket rather than answering one.
+
+    Bridging that cleanly needs a WebRTC peer in the backend (aiortc) or a
+    go2rtc source that speaks the KVS signalling protocol. Until one of those
+    is wired up, this entity:
+
+    * asks the robot to start/stop streaming (which works today), and
+    * exposes the resolved endpoints and ICE servers as attributes, so the
+      handshake can be driven by an external tool or a future backend peer.
+
+    It intentionally does not claim ``CameraEntityFeature.STREAM`` it cannot
+    yet honour; see ``async_get_live_config``.
+    """
+
+    _attr_translation_key = "live"
+    _attr_entity_registry_enabled_default = False
+
+    def __init__(self, coordinator: IRobotCoordinator) -> None:
+        IRobotEntity.__init__(self, coordinator, "live")
+        Camera.__init__(self)
+        self._config: dict[str, Any] | None = None
+
+    @property
+    def available(self) -> bool:
+        return (
+            self.coordinator.live_view is not None
+            and self.coordinator.local.connected
+        )
+
+    @property
+    def is_streaming(self) -> bool:
+        session = self.coordinator.live_view
+        return bool(session and session.is_streaming(self.coordinator.reported))
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        attrs: dict[str, Any] = {"streaming": self.is_streaming}
+        if self._config:
+            # Endpoints and ICE servers only; never the presigned secret URL.
+            attrs["channel_arn"] = self._config.get("channel_arn")
+            attrs["region"] = self._config.get("region")
+            attrs["ice_server_count"] = len(self._config.get("ice_servers", []))
+        return attrs
+
+    async def async_turn_on(self) -> None:
+        if self.coordinator.live_view is None:
+            return
+        await self.coordinator.live_view.async_request_stream(self.coordinator.local)
+
+    async def async_turn_off(self) -> None:
+        if self.coordinator.live_view is None:
+            return
+        await self.coordinator.live_view.async_stop_stream(self.coordinator.local)
+
+    async def async_get_live_config(self) -> dict[str, Any] | None:
+        """Resolve and cache the KVS viewer config (endpoints + ICE servers).
+
+        Returned to callers that can drive the KVS signalling handshake. The
+        presigned WSS URL it contains is short-lived, so it is fetched fresh
+        each call rather than stored on the entity.
+        """
+        if self.coordinator.live_view is None:
+            return None
+        await self.async_turn_on()
+        config = await self.coordinator.live_view.async_get_go2rtc_config()
+        if config:
+            self._config = config
+        return config
+
+    async def async_camera_image(
+        self, width: int | None = None, height: int | None = None
+    ) -> bytes | None:
+        # No still-image path for the live stream; the map camera covers stills.
+        return None

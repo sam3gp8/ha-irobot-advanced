@@ -1,0 +1,18 @@
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+src = ["custom_components"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "SIM", "RUF", "PERF", "N818"]
+ignore = [
+  "B008",     # function call in argument defaults (HA voluptuous schemas)
+  "RUF012",   # mutable class attrs need typing.ClassVar (noisy for HA entities)
+  "PERF203",  # try/except in loop
+]
+
+[tool.ruff.lint.per-file-ignores]
+"custom_components/irobot_advanced/live_view.py" = ["ARG002"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["custom_components.irobot_advanced"]

@@ -8,7 +8,7 @@ links that come back inside the mission-history payload.
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from homeassistant.components.image import ImageEntity
 from homeassistant.config_entries import ConfigEntry
@@ -65,7 +65,7 @@ class IRobotObstacleImage(IRobotEntity, ImageEntity):
             return None
         ts = snapshot["timestamp"]
         try:
-            return datetime.fromtimestamp(float(ts), tz=timezone.utc)
+            return datetime.fromtimestamp(float(ts), tz=UTC)
         except (TypeError, ValueError, OSError):
             return None
 
@@ -90,7 +90,7 @@ class IRobotObstacleImage(IRobotEntity, ImageEntity):
 
         try:
             data = await self.coordinator.cloud.async_fetch_image(url)
-        except Exception as err:  # noqa: BLE001
+        except Exception as err:
             _LOGGER.debug("Could not fetch obstacle snapshot: %s", err)
             return self._cached_bytes
 

@@ -13,7 +13,7 @@ from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
-from .auth import IRobotAuth, InvalidCredentials
+from .auth import InvalidCredentialsError, IRobotAuth
 from .cloud_client import CloudAuthError, IRobotCloudClient
 from .const import (
     CONF_APP_ID,
@@ -26,6 +26,7 @@ from .const import (
     DEFAULT_APP_ID,
     DOMAIN,
 )
+from .live_view import LiveViewSession
 from .local_client import RoombaLocalClient
 
 _LOGGER = logging.getLogger(__name__)
@@ -46,7 +47,7 @@ class IRobotCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         registry: dict[str, IRobotAuth] = hass.data.setdefault(f"{DOMAIN}_auth", {})
         key = options[CONF_CLOUD_USERNAME].strip().lower()
         auth = registry.get(key)
-        if auth is None or auth._password != options[CONF_CLOUD_PASSWORD]:  # noqa: SLF001
+        if auth is None or auth._password != options[CONF_CLOUD_PASSWORD]:
             auth = IRobotAuth(
                 session=async_get_clientsession(hass),
                 username=options[CONF_CLOUD_USERNAME],
@@ -79,10 +80,13 @@ class IRobotCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
         self.auth: IRobotAuth | None = None
         self.cloud: IRobotCloudClient | None = None
+        self.live_view: LiveViewSession | None = None
         options = {**entry.data, **entry.options}
         if options.get(CONF_ENABLE_CLOUD) and options.get(CONF_CLOUD_USERNAME):
             self.auth = self._shared_auth(hass, options)
-            self.cloud = IRobotCloudClient(async_get_clientsession(hass), self.auth)
+            session = async_get_clientsession(hass)
+            self.cloud = IRobotCloudClient(session, self.auth)
+            self.live_view = LiveViewSession(session, self.blid, self.auth)
 
         self.position: dict[str, Any] = {}
         self.pmaps: list[dict[str, Any]] = []
@@ -121,7 +125,7 @@ class IRobotCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             try:
                 await self._async_refresh_cloud()
                 self.cloud_error = None
-            except InvalidCredentials as err:
+            except InvalidCredentialsError as err:
                 # Password changed on the account -- ask the user to re-enter it
                 # rather than silently degrading.
                 raise ConfigEntryAuthFailed(str(err)) from err
@@ -187,15 +191,13 @@ class IRobotCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     @property
     def regions(self) -> list[dict[str, Any]]:
         """Flatten every named region across all known maps."""
-        out: list[dict[str, Any]] = []
-        for pmap_id, umf in self.pmap_details.items():
-            for region in umf.get("regions", []) or []:
-                out.append(
-                    {
-                        "pmap_id": pmap_id,
-                        "region_id": str(region.get("id", region.get("region_id"))),
-                        "name": region.get("name"),
-                        "type": region.get("region_type", region.get("type")),
-                    }
-                )
-        return out
+        return [
+            {
+                "pmap_id": pmap_id,
+                "region_id": str(region.get("id", region.get("region_id"))),
+                "name": region.get("name"),
+                "type": region.get("region_type", region.get("type")),
+            }
+            for pmap_id, umf in self.pmap_details.items()
+            for region in umf.get("regions", []) or []
+        ]

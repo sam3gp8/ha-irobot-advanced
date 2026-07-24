@@ -74,3 +74,17 @@ refresh_maps:
         entity:
           integration: irobot_advanced
           domain: vacuum
+
+get_live_view_config:
+  name: Get live view config
+  description: >-
+    Resolve the KVS WebRTC viewer configuration (signalling endpoint and ICE
+    servers) for a camera-equipped robot, and ask it to start streaming.
+    Returns data for driving the stream with an external WebRTC tool.
+  fields:
+    entity_id:
+      required: true
+      selector:
+        entity:
+          integration: irobot_advanced
+          domain: vacuum

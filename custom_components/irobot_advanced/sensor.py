@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from homeassistant.components.sensor import (
@@ -37,7 +37,7 @@ def _last_mission_start(coordinator: IRobotCoordinator) -> datetime | None:
     ts = coordinator.mission.get("mssnStrtTm")
     if not ts:
         return None
-    return datetime.fromtimestamp(ts, tz=timezone.utc)
+    return datetime.fromtimestamp(ts, tz=UTC)
 
 
 SENSORS: tuple[IRobotSensorDescription, ...] = (
@@ -157,19 +157,17 @@ def _recent_missions(coordinator: IRobotCoordinator) -> list[dict[str, Any]]:
     Entity attributes are size-capped, so this keeps the ten most recent runs
     and only the fields the card renders.
     """
-    out: list[dict[str, Any]] = []
-    for mission in coordinator.missions[:10]:
-        out.append(
-            {
-                "id": mission.get("id") or mission.get("missionId"),
-                "start": mission.get("startTime") or mission.get("start_time"),
-                "duration": mission.get("duration") or mission.get("runtime"),
-                "area": mission.get("sqft") or mission.get("area"),
-                "status": mission.get("status") or mission.get("endStatus"),
-                "error": mission.get("error"),
-            }
-        )
-    return out
+    return [
+        {
+            "id": mission.get("id") or mission.get("missionId"),
+            "start": mission.get("startTime") or mission.get("start_time"),
+            "duration": mission.get("duration") or mission.get("runtime"),
+            "area": mission.get("sqft") or mission.get("area"),
+            "status": mission.get("status") or mission.get("endStatus"),
+            "error": mission.get("error"),
+        }
+        for mission in coordinator.missions[:10]
+    ]
 
 
 def _schedule_summary(coordinator: IRobotCoordinator) -> str:

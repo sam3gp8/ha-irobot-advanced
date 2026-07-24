@@ -9,24 +9,33 @@ on:
 
 jobs:
   hassfest:
-    name: Home Assistant hassfest
+    name: hassfest
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: home-assistant/actions/hassfest@master
+        with:
+          # This integration's brand assets are not in the home-assistant/brands
+          # repository, so skip the brands cross-check. Everything else in
+          # hassfest still runs.
+          ignore: brands
 
   hacs:
-    name: HACS validation
+    name: HACS
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: hacs/action@main
         with:
           category: integration
+          # Same reason: no entry in home-assistant/brands yet.
+          ignore: brands
 
-  lint:
+  ruff:
     name: Ruff
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/ruff-action@v3
+        with:
+          args: "check"

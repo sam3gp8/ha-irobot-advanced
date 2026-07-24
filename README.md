@@ -118,6 +118,16 @@ This performs the robot's password exchange once and stores the result.
 - **Diagnostics** are available from the device page. Credentials, BLIDs, MAC
   addresses and network names are redacted.
 
+## Icons
+
+The integration ships its own icon and logo in `custom_components/irobot_advanced/brand/`.
+On Home Assistant 2026.3 and newer these are served automatically — the robot
+shows the iRobot icon on the Integrations page, device pages and in the sidebar
+with no extra steps. Light and dark theme variants are both included.
+
+On older Home Assistant versions the integration page falls back to a generic
+icon, but the dashboard card always shows the iRobot mark regardless.
+
 ## Dashboard
 
 The integration ships its own interface — no extra HACS frontend plugin to
@@ -223,21 +233,24 @@ position stream. `command: timeline` requests the mission timeline.
 
 ## Live camera view
 
-Camera-equipped robots do support a live view — it's in the app, and it is
-**AWS Kinesis Video Streams over WebRTC**, with the robot as the stream master.
+Camera-equipped robots stream over **AWS Kinesis Video Streams WebRTC**, with
+the robot as the stream master and Home Assistant as a viewer.
 
-It is cloud-only; the robot won't originate video without a signalling channel
-from AWS. `live_view.py` contains the scaffold — the shadow write that brings
-the camera up, the streaming-status parser, and the endpoint resolution shape.
-What remains is the Kinesis control-plane calls, which can reuse the existing
-SigV4 signer and credentials.
+The full control-plane handshake is implemented: the integration asks the robot
+to start its camera, resolves the signalling channel and its viewer endpoints,
+and fetches the STUN/TURN servers — all authenticated with your account
+credentials. A live camera entity (disabled by default) turns the camera on and
+off, and the `get_live_view_config` service returns the resolved signalling
+endpoint and ICE servers.
 
-The intended route from there is to hand go2rtc a
-`webrtc:<wss-url>#format=kinesis` source, since Home Assistant already ships
-go2rtc. **This is not implemented yet** — no live-view entity is created.
-Contributions welcome.
+**Playback is not yet wired end-to-end.** KVS negotiates media over a
+bidirectional signalling WebSocket where the robot originates the offer, which
+doesn't fit Home Assistant's built-in offer/answer WebRTC path. Finishing it
+needs a backend WebRTC peer (aiortc) or a go2rtc source that speaks KVS
+signalling. Until then the handshake is fully resolved and exposed through the
+service, so the stream can be opened with an external WebRTC tool.
 
-## How it works
+## How it works## How it works
 
 Briefly, with detail in [PROTOCOL.md](PROTOCOL.md):
 
@@ -288,6 +301,12 @@ quickest way to see what a given robot accepts.
   attribute, but writes use the legacy schedule format, which robots still
   accept.
 - **Live view is not implemented**, as described above.
+
+## Versioning
+
+The project stays in the `0.x` series until the live camera view streams video
+end-to-end. Releases still increment within `0.x`; there will be no `1.0.0`
+until that feature is complete.
 
 ## Changelog
 

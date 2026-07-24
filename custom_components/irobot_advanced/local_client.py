@@ -11,6 +11,7 @@ Three pieces, all reverse engineered from the 7.18.0 app's native core
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import logging
 import socket
@@ -51,10 +52,8 @@ def _legacy_ssl_context() -> ssl.SSLContext:
     ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
     ctx.check_hostname = False
     ctx.verify_mode = ssl.CERT_NONE
-    try:
+    with contextlib.suppress(AttributeError, ValueError):  # old python
         ctx.minimum_version = ssl.TLSVersion.TLSv1
-    except (AttributeError, ValueError):  # pragma: no cover - old python
-        pass
     try:
         ctx.set_ciphers("DEFAULT@SECLEVEL=1")
     except ssl.SSLError:  # pragma: no cover - distro without SECLEVEL
@@ -109,32 +108,34 @@ async def async_discover(timeout: float = DISCOVERY_TIMEOUT) -> list[dict[str, A
 
 def _blocking_get_password(host: str, port: int) -> str:
     ctx = _legacy_ssl_context()
-    with socket.create_connection((host, port), timeout=PASSWORD_TIMEOUT) as raw:
-        with ctx.wrap_socket(raw, server_hostname=host) as tls:
-            tls.settimeout(PASSWORD_TIMEOUT)
-            tls.send(PASSWORD_REQUEST)
-            buf = b""
-            deadline = time.monotonic() + PASSWORD_TIMEOUT
-            while time.monotonic() < deadline:
-                try:
-                    chunk = tls.recv(1024)
-                except socket.timeout:
-                    break
-                if not chunk:
-                    break
-                buf += chunk
-                # Short reply == robot is not in "add user" mode.
-                if len(buf) > PASSWORD_HEADER_LEN + 6:
-                    break
+    with (
+        socket.create_connection((host, port), timeout=PASSWORD_TIMEOUT) as raw,
+        ctx.wrap_socket(raw, server_hostname=host) as tls,
+    ):
+        tls.settimeout(PASSWORD_TIMEOUT)
+        tls.send(PASSWORD_REQUEST)
+        buf = b""
+        deadline = time.monotonic() + PASSWORD_TIMEOUT
+        while time.monotonic() < deadline:
+            try:
+                chunk = tls.recv(1024)
+            except TimeoutError:
+                break
+            if not chunk:
+                break
+            buf += chunk
+            # Short reply == robot is not in "add user" mode.
+            if len(buf) > PASSWORD_HEADER_LEN + 6:
+                break
 
     if len(buf) <= PASSWORD_HEADER_LEN:
-        raise PasswordNotReady(
+        raise PasswordNotReadyError(
             "Robot did not return a password. Hold HOME until it chimes, then retry."
         )
     return buf[PASSWORD_HEADER_LEN:].decode("utf-8", "ignore").strip("\x00").strip()
 
 
-class PasswordNotReady(Exception):
+class PasswordNotReadyError(Exception):
     """Raised when the robot is not in password-exchange mode."""
 
 
@@ -196,7 +197,7 @@ class RoombaLocalClient:
 
     # ---------------------------------------------------------------- callbacks
 
-    def _handle_connect(self, client, userdata, flags, rc) -> None:  # noqa: ANN001
+    def _handle_connect(self, client, userdata, flags, rc) -> None:
         if rc != 0:
             _LOGGER.error("%s: local MQTT refused (rc=%s)", self.blid, rc)
             return
@@ -204,12 +205,12 @@ class RoombaLocalClient:
         client.subscribe("#", qos=0)
         _LOGGER.debug("%s: local MQTT connected", self.blid)
 
-    def _handle_disconnect(self, client, userdata, rc) -> None:  # noqa: ANN001
+    def _handle_disconnect(self, client, userdata, rc) -> None:
         self.connected = False
         if rc != 0:
             _LOGGER.warning("%s: unexpected local disconnect (rc=%s)", self.blid, rc)
 
-    def _handle_message(self, client, userdata, msg) -> None:  # noqa: ANN001
+    def _handle_message(self, client, userdata, msg) -> None:
         try:
             payload = json.loads(msg.payload.decode("utf-8", "ignore"))
         except ValueError:

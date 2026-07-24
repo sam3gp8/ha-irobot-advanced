@@ -33,9 +33,11 @@ const STYLES = `
   .head { display: flex; align-items: center; gap: 14px; padding: 16px; }
   .avatar {
     width: 44px; height: 44px; border-radius: 50%;
-    background: var(--primary-color); color: var(--text-primary-color, #fff);
-    display: grid; place-items: center; font-weight: 600; flex: none;
+    background: #fff; flex: none;
+    display: grid; place-items: center; overflow: hidden;
+    border: 1px solid var(--divider-color);
   }
+  .avatar img { width: 78%; height: 78%; object-fit: contain; }
   .head h2 { margin: 0; font-size: 1.15rem; font-weight: 500; }
   .head .sub { color: var(--secondary-text-color); font-size: .85rem; margin-top: 2px; }
   .spacer { flex: 1; }
@@ -272,7 +274,10 @@ class IRobotAdvancedCard extends HTMLElement {
     const battery = attrs.battery_level;
     const name = attrs.friendly_name || "Roomba";
     this._el.head.innerHTML = `
-      <div class="avatar">${name.slice(0, 1).toUpperCase()}</div>
+      <div class="avatar"><img
+          src="/api/brands/integration/irobot_advanced/icon.png"
+          onerror="this.onerror=null;this.src='/irobot_advanced/irobot-icon.png'"
+          alt=""></div>
       <div>
         <h2>${name}</h2>
         <div class="sub">${titleCase(attrs.phase || this._vac.state)}${

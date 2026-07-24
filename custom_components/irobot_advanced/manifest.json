@@ -1,9 +1,6 @@
 {
   "domain": "irobot_advanced",
   "name": "iRobot Advanced",
-  "version": "0.3.0",
-  "documentation": "https://github.com/sam3gp8/ha-irobot-advanced",
-  "issue_tracker": "https://github.com/sam3gp8/ha-irobot-advanced/issues",
   "codeowners": [
     "@sam3gp8"
   ],
@@ -12,12 +9,6 @@
     "http",
     "frontend",
     "panel_custom"
-  ],
-  "integration_type": "device",
-  "iot_class": "local_push",
-  "requirements": [
-    "paho-mqtt>=1.6.1",
-    "Pillow>=10.0.0"
   ],
   "dhcp": [
     {
@@ -30,6 +21,15 @@
       "hostname": "braava-*"
     }
   ],
+  "documentation": "https://github.com/sam3gp8/ha-irobot-advanced",
+  "integration_type": "device",
+  "iot_class": "local_push",
+  "issue_tracker": "https://github.com/sam3gp8/ha-irobot-advanced/issues",
+  "requirements": [
+    "paho-mqtt>=1.6.1",
+    "Pillow>=10.0.0"
+  ],
+  "version": "0.5.0",
   "zeroconf": [
     {
       "type": "_mqtt._tcp.local.",

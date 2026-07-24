@@ -35,7 +35,7 @@ from __future__ import annotations
 import logging
 import random
 import time
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 from urllib.parse import urlparse
 
@@ -54,7 +54,7 @@ class IRobotAuthError(Exception):
     """Login failed."""
 
 
-class InvalidCredentials(IRobotAuthError):
+class InvalidCredentialsError(IRobotAuthError):
     """Wrong email or password."""
 
 
@@ -164,7 +164,7 @@ class IRobotAuth:
             message = payload.get("errorDetails") or payload.get("errorMessage") or ""
             # 403042 = invalid loginID or password; 403041 = account disabled.
             if error_code in (403042, 403041, 400006):
-                raise InvalidCredentials(f"Gigya rejected the login: {message}")
+                raise InvalidCredentialsError(f"Gigya rejected the login: {message}")
             raise IRobotAuthError(f"Gigya error {error_code}: {message}")
 
         for field in ("UID", "UIDSignature", "signatureTimestamp"):
@@ -258,10 +258,10 @@ def _parse_expiry(value: Any) -> datetime:
             pass
     if isinstance(value, (int, float)):
         try:
-            return datetime.fromtimestamp(float(value), tz=timezone.utc)
+            return datetime.fromtimestamp(float(value), tz=UTC)
         except (OverflowError, OSError, ValueError):
             pass
-    return datetime.now(timezone.utc) + DEFAULT_CREDENTIAL_TTL
+    return datetime.now(UTC) + DEFAULT_CREDENTIAL_TTL
 
 
 def _normalise_robots(raw: Any) -> dict[str, Any]:

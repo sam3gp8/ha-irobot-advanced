@@ -25,6 +25,7 @@ from homeassistant.config_entries import (
 from homeassistant.const import CONF_HOST, CONF_PASSWORD, CONF_USERNAME
 from homeassistant.core import callback
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
+
 try:  # HA 2025.1+
     from homeassistant.helpers.service_info.dhcp import DhcpServiceInfo
     from homeassistant.helpers.service_info.zeroconf import ZeroconfServiceInfo
@@ -32,7 +33,7 @@ except ImportError:  # pragma: no cover - older cores
     from homeassistant.components.dhcp import DhcpServiceInfo
     from homeassistant.components.zeroconf import ZeroconfServiceInfo
 
-from .auth import IRobotAuth, IRobotAuthError, InvalidCredentials
+from .auth import InvalidCredentialsError, IRobotAuth, IRobotAuthError
 from .const import (
     CONF_APP_ID,
     CONF_BLID,
@@ -45,7 +46,7 @@ from .const import (
     DEFAULT_APP_ID,
     DOMAIN,
 )
-from .local_client import PasswordNotReady, async_discover, async_get_password
+from .local_client import PasswordNotReadyError, async_discover, async_get_password
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -87,12 +88,12 @@ class IRobotConfigFlow(ConfigFlow, domain=DOMAIN):
             )
             try:
                 await auth.async_login()
-            except InvalidCredentials:
+            except InvalidCredentialsError:
                 errors["base"] = "invalid_auth"
             except IRobotAuthError as err:
                 _LOGGER.debug("Cloud login failed: %s", err)
                 errors["base"] = "cannot_connect"
-            except Exception:  # noqa: BLE001
+            except Exception:
                 _LOGGER.exception("Unexpected error during cloud login")
                 errors["base"] = "unknown"
             else:
@@ -239,7 +240,7 @@ class IRobotConfigFlow(ConfigFlow, domain=DOMAIN):
             host = self._selected["ip"]
             try:
                 password = await async_get_password(host)
-            except PasswordNotReady:
+            except PasswordNotReadyError:
                 errors["base"] = "not_in_pairing_mode"
             except OSError as err:
                 _LOGGER.debug("Password exchange failed: %s", err)
@@ -465,7 +466,7 @@ class IRobotConfigFlow(ConfigFlow, domain=DOMAIN):
             )
             try:
                 await auth.async_login()
-            except InvalidCredentials:
+            except InvalidCredentialsError:
                 errors["base"] = "invalid_auth"
             except IRobotAuthError:
                 errors["base"] = "cannot_connect"
@@ -488,7 +489,7 @@ class IRobotConfigFlow(ConfigFlow, domain=DOMAIN):
 
     @staticmethod
     @callback
-    def async_get_options_flow(config_entry) -> OptionsFlow:  # noqa: ANN001
+    def async_get_options_flow(config_entry) -> OptionsFlow:
         return IRobotOptionsFlow()
 
 
@@ -515,7 +516,7 @@ class IRobotOptionsFlow(OptionsFlow):
                 )
                 try:
                     await auth.async_login()
-                except InvalidCredentials:
+                except InvalidCredentialsError:
                     errors["base"] = "invalid_auth"
                 except IRobotAuthError:
                     errors["base"] = "cannot_connect"

@@ -5,14 +5,95 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+> **Versioning policy.** This project stays in the `0.x` series until the live
+> camera view streams video end-to-end. No `1.0.0` release before then —
+> `0.x` signals that a headline feature is still incomplete. Releases keep
+> incrementing within `0.x` (`0.5.0`, `0.6.0`, …) so updates remain
+> distinguishable.
+
 ## [Unreleased]
 
 ### Planned
 
-- Live camera view via AWS Kinesis Video Streams WebRTC — scaffold exists in
-  `live_view.py`; the Kinesis control-plane calls remain
-- Write support for `cleanSchedule2`, the newer room-aware schedule format
-- Replace heuristic UMF layer parsing once enough map samples are available
+- **Live camera media path (blocks 1.0).** Control plane is done; the remaining
+  work is a backend WebRTC peer (aiortc) or a go2rtc KVS-signalling source so
+  the stream actually plays. Until this lands the project stays on `0.x`.
+- Write support for `cleanSchedule2`, the newer room-aware schedule format.
+- Replace heuristic UMF layer parsing once enough map samples are available.
+
+## [0.5.0] — 2026-07-24
+
+### Added
+
+- **Live camera control plane (KVS WebRTC).** `live_view.py` now implements the
+  full AWS Kinesis Video Streams viewer handshake: `DescribeSignalingChannel`,
+  `GetSignalingChannelEndpoint` (role VIEWER), `GetIceServerConfig`, and a
+  presigned WSS signalling URL — all SigV4-signed with the account credentials.
+- **Presigned-URL signing** added to `sigv4.py` (`presign_url`), verified to
+  carry every required `X-Amz-*` query parameter including `ChannelARN` and
+  `ClientId`.
+- **Live camera entity** (`camera.*_live`, disabled by default) that starts and
+  stops the robot's camera and exposes the resolved endpoints and ICE-server
+  count as attributes.
+- **`get_live_view_config` service** returning the viewer configuration
+  (signalling endpoint + ICE servers) so the stream can be driven by an
+  external WebRTC tool while the in-process media path is finished.
+
+### Notes
+
+- The KVS control-plane calls use the standard public AWS API and are
+  implemented directly, not reverse engineered.
+- **The media path is not yet end-to-end.** KVS uses a bidirectional
+  signalling WebSocket with the robot as master originating the SDP offer,
+  which does not map onto Home Assistant's simple offer/answer WebRTC provider.
+  Completing playback needs a backend WebRTC peer (aiortc) or a go2rtc source
+  that speaks KVS signalling; the live camera entity therefore does not yet
+  advertise a stream it cannot honour. The handshake data is fully resolved and
+  available via the service in the meantime.
+
+## [0.4.0] — 2026-07-24
+
+### Added
+
+- **Self-served brand icons.** The integration now ships its icon and logo in an
+  in-tree `brand/` folder, which Home Assistant 2026.3+ serves natively via its
+  brands proxy — no submission to the `home-assistant/brands` repository
+  required. Light and dark variants (`icon.png`, `dark_icon.png`, `logo.png`,
+  `dark_logo.png`, plus `@2x` versions) are included.
+- The dashboard card requests the icon from Home Assistant's brands proxy and
+  falls back to a bundled copy on older cores.
+
+### Removed
+
+- The top-level `brands/` folder and its manual-submission instructions, made
+  obsolete by native brand serving.
+
+### Notes
+
+- Native icon serving requires Home Assistant 2026.3 or newer. On older
+  versions the integration page shows a generic icon; the dashboard card shows
+  the iRobot mark regardless. The integration's minimum supported version is
+  unchanged at 2025.1.
+
+## [0.3.1] — 2026-07-24
+
+### Fixed
+
+- **CI is green.** Ruff findings resolved (combined nested `with`, exception
+  classes renamed to the `*Error` convention, `contextlib.suppress`, list
+  comprehensions). hassfest and HACS now run with `ignore: brands`, since the
+  integration's brand assets are not yet in the `home-assistant/brands`
+  repository — every other check still runs.
+- Manifest keys reordered to the sequence hassfest expects.
+
+### Added
+
+- Brand icon and logo (`brands/`), sized for a `home-assistant/brands`
+  submission, plus instructions in `brands/README.md`.
+- The dashboard card header now shows the iRobot icon.
+- `pyproject.toml` pins the Ruff ruleset so local and CI linting match.
+- `.gitignore` keeps `__pycache__` and build artifacts out of the repo (a stale
+  `.pyc` had been tripping the linter).
 
 ## [0.3.0] — 2026-07-24
 
@@ -141,7 +222,10 @@ Initial release.
 - `PROTOCOL.md` documenting the discovery, MQTT, map, schedule and live-view
   protocols.
 
-[Unreleased]: https://github.com/sam3gp8/ha-irobot-advanced/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/sam3gp8/ha-irobot-advanced/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/sam3gp8/ha-irobot-advanced/compare/v0.4.0...v0.5.0
+[0.4.0]: https://github.com/sam3gp8/ha-irobot-advanced/compare/v0.3.1...v0.4.0
+[0.3.1]: https://github.com/sam3gp8/ha-irobot-advanced/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/sam3gp8/ha-irobot-advanced/compare/v0.2.2...v0.3.0
 [0.2.2]: https://github.com/sam3gp8/ha-irobot-advanced/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/sam3gp8/ha-irobot-advanced/compare/v0.2.0...v0.2.1

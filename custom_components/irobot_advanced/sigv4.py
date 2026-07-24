@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import hashlib
 import hmac
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from urllib.parse import quote, urlparse
 
 ALGORITHM = "AWS4-HMAC-SHA256"
@@ -20,7 +20,7 @@ EMPTY_HASH = hashlib.sha256(b"").hexdigest()
 class SigV4Credentials:
     """Temporary STS credentials with an expiry."""
 
-    __slots__ = ("access_key", "secret_key", "session_token", "expires_at")
+    __slots__ = ("access_key", "expires_at", "secret_key", "session_token")
 
     def __init__(
         self,
@@ -37,7 +37,7 @@ class SigV4Credentials:
     def is_expired(self, skew_seconds: int = 300) -> bool:
         if self.expires_at is None:
             return False
-        remaining = (self.expires_at - datetime.now(timezone.utc)).total_seconds()
+        remaining = (self.expires_at - datetime.now(UTC)).total_seconds()
         return remaining <= skew_seconds
 
 
@@ -83,7 +83,7 @@ def sign_request(
     canonical_uri = quote(parsed.path or "/", safe="/-_.~")
     canonical_qs = _canonical_query(parsed.query)
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     amz_date = now.strftime("%Y%m%dT%H%M%SZ")
     datestamp = now.strftime("%Y%m%d")
 
@@ -138,3 +138,71 @@ def sign_request(
     if body:
         out["x-amz-content-sha256"] = payload_hash
     return out
+
+
+def presign_url(
+    url: str,
+    credentials: SigV4Credentials,
+    region: str,
+    service: str = "kinesisvideo",
+    expires: int = 299,
+    extra_query: dict[str, str] | None = None,
+) -> str:
+    """Return ``url`` with SigV4 auth in the query string (presigned).
+
+    Used for the KVS WebRTC signalling WebSocket, where credentials must ride
+    in the URL rather than in headers because the browser/relay opening the
+    socket cannot set AWS auth headers. ``extra_query`` carries protocol
+    parameters like ``X-Amz-ChannelARN`` and ``X-Amz-ClientId``.
+    """
+    parsed = urlparse(url)
+    host = parsed.netloc
+    canonical_uri = quote(parsed.path or "/", safe="/-_.~")
+
+    now = datetime.now(UTC)
+    amz_date = now.strftime("%Y%m%dT%H%M%SZ")
+    datestamp = now.strftime("%Y%m%d")
+    credential_scope = f"{datestamp}/{region}/{service}/aws4_request"
+
+    query: dict[str, str] = {
+        "X-Amz-Algorithm": ALGORITHM,
+        "X-Amz-Credential": f"{credentials.access_key}/{credential_scope}",
+        "X-Amz-Date": amz_date,
+        "X-Amz-Expires": str(expires),
+        "X-Amz-SignedHeaders": "host",
+    }
+    if credentials.session_token:
+        query["X-Amz-Security-Token"] = credentials.session_token
+    if extra_query:
+        query.update(extra_query)
+
+    canonical_qs = "&".join(
+        f"{quote(k, safe='-_.~')}={quote(v, safe='-_.~')}"
+        for k, v in sorted(query.items())
+    )
+
+    canonical_request = "\n".join(
+        [
+            "GET",
+            canonical_uri,
+            canonical_qs,
+            f"host:{host}\n",
+            "host",
+            EMPTY_HASH,
+        ]
+    )
+    string_to_sign = "\n".join(
+        [
+            ALGORITHM,
+            amz_date,
+            credential_scope,
+            hashlib.sha256(canonical_request.encode("utf-8")).hexdigest(),
+        ]
+    )
+    signature = hmac.new(
+        _signing_key(credentials.secret_key, datestamp, region, service),
+        string_to_sign.encode("utf-8"),
+        hashlib.sha256,
+    ).hexdigest()
+
+    return f"{parsed.scheme}://{host}{canonical_uri}?{canonical_qs}&X-Amz-Signature={signature}"

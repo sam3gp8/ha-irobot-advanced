@@ -189,6 +189,9 @@
     "camera": {
       "map": {
         "name": "Map"
+      },
+      "live": {
+        "name": "Live camera"
       }
     },
     "image": {
@@ -257,6 +260,16 @@
     "refresh_maps": {
       "name": "Refresh maps",
       "description": "Force a cloud refresh of maps, history and obstacle snapshots.",
+      "fields": {
+        "entity_id": {
+          "name": "Vacuum",
+          "description": "Target vacuum entity."
+        }
+      }
+    },
+    "get_live_view_config": {
+      "name": "Get live view config",
+      "description": "Resolve the KVS WebRTC viewer configuration for a camera-equipped robot and start streaming.",
       "fields": {
         "entity_id": {
           "name": "Vacuum",

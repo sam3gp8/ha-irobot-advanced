@@ -8,6 +8,7 @@ also makes it selectable in the Lovelace card picker.
 
 from __future__ import annotations
 
+import contextlib
 import logging
 from pathlib import Path
 
@@ -43,7 +44,8 @@ async def async_register_frontend(hass: HomeAssistant) -> None:
     # Makes <irobot-advanced-card> available to dashboards and the card picker.
     frontend.add_extra_js_url(hass, CARD_URL)
 
-    try:
+    with contextlib.suppress(ValueError):
+        # ValueError == already registered by a previous setup; harmless.
         await panel_custom.async_register_panel(
             hass,
             frontend_url_path=PANEL_URL_PATH,
@@ -54,9 +56,6 @@ async def async_register_frontend(hass: HomeAssistant) -> None:
             require_admin=False,
             embed_iframe=False,
         )
-    except ValueError:
-        # Already registered by a previous setup; harmless.
-        pass
 
     hass.data[_REGISTERED] = True
     _LOGGER.debug("Frontend card and panel registered at %s", CARD_URL)

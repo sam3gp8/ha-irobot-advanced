@@ -3,13 +3,20 @@
 from __future__ import annotations
 
 import logging
+from typing import Any
 
 import voluptuous as vol
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
-from homeassistant.core import HomeAssistant, ServiceCall
+from homeassistant.core import (
+    HomeAssistant,
+    ServiceCall,
+    ServiceResponse,
+    SupportsResponse,
+)
 from homeassistant.exceptions import ConfigEntryNotReady
-from homeassistant.helpers import config_validation as cv, entity_registry as er
+from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers import entity_registry as er
 
 from .const import (
     CONF_APP_ID,
@@ -18,6 +25,7 @@ from .const import (
     DOMAIN,
     SERVICE_CLEAN_ROOMS,
     SERVICE_EMPTY_BIN,
+    SERVICE_GET_LIVE_CONFIG,
     SERVICE_LOCATE,
     SERVICE_REFRESH_MAPS,
     SERVICE_SET_SCHEDULE,
@@ -189,8 +197,26 @@ def _async_register_services(hass: HomeAssistant) -> None:
         for coordinator in _coordinators_for(call):
             await coordinator.async_refresh_maps()
 
+    async def _get_live_config(call: ServiceCall) -> ServiceResponse:
+        """Resolve KVS viewer config so an external tool can open the stream."""
+        results: dict[str, Any] = {}
+        for coordinator in _coordinators_for(call):
+            if coordinator.live_view is None:
+                results[coordinator.blid] = {"error": "cloud access not enabled"}
+                continue
+            config = await coordinator.live_view.async_get_go2rtc_config()
+            results[coordinator.blid] = config or {"error": "live view unavailable"}
+        return {"robots": results}
+
     hass.services.async_register(DOMAIN, SERVICE_CLEAN_ROOMS, _clean_rooms, CLEAN_ROOMS_SCHEMA)
     hass.services.async_register(DOMAIN, SERVICE_SET_SCHEDULE, _set_schedule, SET_SCHEDULE_SCHEMA)
     hass.services.async_register(DOMAIN, SERVICE_EMPTY_BIN, _empty_bin, SIMPLE_SCHEMA)
     hass.services.async_register(DOMAIN, SERVICE_LOCATE, _locate, SIMPLE_SCHEMA)
     hass.services.async_register(DOMAIN, SERVICE_REFRESH_MAPS, _refresh_maps, SIMPLE_SCHEMA)
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_GET_LIVE_CONFIG,
+        _get_live_config,
+        SIMPLE_SCHEMA,
+        supports_response=SupportsResponse.OPTIONAL,
+    )
