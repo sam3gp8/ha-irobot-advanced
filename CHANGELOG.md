@@ -18,8 +18,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Live camera media path (blocks 1.0).** Control plane is done; the remaining
   work is a backend WebRTC peer (aiortc) or a go2rtc KVS-signalling source so
   the stream actually plays. Until this lands the project stays on `0.x`.
-- Write support for `cleanSchedule2`, the newer room-aware schedule format.
 - Replace heuristic UMF layer parsing once enough map samples are available.
+
+## [0.6.0] — 2026-07-24
+
+### Added
+
+- **`cleanSchedule2` write support.** The `set_schedule` service now produces
+  the newer room-aware schedule format when a slot includes `pmap_id`/`regions`
+  (or when `use_v2: true` is passed). Time-only schedules continue to use the
+  proven legacy `cleanSchedule` format.
+- A dedicated `schedule.py` module with lossless legacy parsing/building and
+  tolerant `cleanSchedule2` handling that accepts several key spellings.
+- The schedule sensor now summarises either format, including a count of
+  room-specific days.
+- Buy Me a Coffee support link (badge, README section, and repository Sponsor
+  button via `.github/FUNDING.yml`).
+
+### Notes
+
+- The `cleanSchedule2` object shape is **inferred** from the app's schema field
+  cluster (`CleanScheduleMultipleMapping`, `Enabled`, `StartTime`, `Cycle`),
+  not from a captured payload — the app builds it in a serializer layer that
+  isn't statically recoverable. Writes are conservative: legacy is the default,
+  v2 is opt-in, and the inferred keys are marked with `TODO(confirm-with-sample)`
+  in `schedule.py`. A real `cleanSchedule2` payload (visible in a diagnostics
+  dump once cloud access works) will confirm or correct the shape. This is why
+  the project remains on `0.x`.
 
 ## [0.5.0] — 2026-07-24
 
@@ -222,7 +247,8 @@ Initial release.
 - `PROTOCOL.md` documenting the discovery, MQTT, map, schedule and live-view
   protocols.
 
-[Unreleased]: https://github.com/sam3gp8/ha-irobot-advanced/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/sam3gp8/ha-irobot-advanced/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/sam3gp8/ha-irobot-advanced/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/sam3gp8/ha-irobot-advanced/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/sam3gp8/ha-irobot-advanced/compare/v0.3.1...v0.4.0
 [0.3.1]: https://github.com/sam3gp8/ha-irobot-advanced/compare/v0.3.0...v0.3.1

@@ -39,8 +39,19 @@ set_schedule:
       name: Schedule
       required: true
       example: "[{day: mon, enabled: true, hour: 9, minute: 30}]"
+      description: >-
+        List of day/enabled/hour/minute entries. Add pmap_id and regions to a
+        day for room-aware scheduling (switches that write to cleanSchedule2).
       selector:
         object:
+    use_v2:
+      name: Force cleanSchedule2
+      description: >-
+        Force the newer room-aware schedule format even without room targeting.
+        Off by default; room targeting enables it automatically.
+      default: false
+      selector:
+        boolean:
 
 empty_bin:
   name: Empty bin

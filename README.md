@@ -3,6 +3,7 @@
 [![HACS: Custom](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://hacs.xyz)
 [![Validate](https://github.com/sam3gp8/ha-irobot-advanced/actions/workflows/validate.yml/badge.svg)](https://github.com/sam3gp8/ha-irobot-advanced/actions/workflows/validate.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20A%20Coffee-support-yellow.svg?logo=buymeacoffee)](https://www.buymeacoffee.com/sam3gp8)
 
 A local-first Home Assistant integration for Wi-Fi iRobot vacuums and mops.
 Maps, room-targeted cleaning, schedules, obstacle snapshots, and live robot
@@ -205,6 +206,28 @@ data:
       minute: 0
 ```
 
+Room-aware scheduling (newer robots) — add `pmap_id` and `regions` to a slot,
+which switches that write to the `cleanSchedule2` format automatically:
+
+```yaml
+action: irobot_advanced.set_schedule
+target:
+  entity_id: vacuum.roomba
+data:
+  schedule:
+    - day: sat
+      enabled: true
+      hour: 10
+      minute: 0
+      pmap_id: "MYMAPID"
+      regions: [3, 7]
+```
+
+> The `cleanSchedule2` structure is inferred from the app schema rather than a
+> captured sample, so room-aware scheduling is best-effort until confirmed
+> against a real payload. Plain time-only schedules use the long-proven legacy
+> format and are unaffected.
+
 ### Others
 
 | Service | Effect |
@@ -319,6 +342,12 @@ Issues and pull requests are welcome. Please add an entry under `Unreleased` in
 model-specific, please attach a diagnostics dump from the device page — it is redacted by design and includes
 the field names the cloud returned, which is exactly what's needed to fix the
 heuristic parsers above.
+
+## Support
+
+If this integration is useful to you, you can
+[buy me a coffee](https://www.buymeacoffee.com/sam3gp8). Entirely optional and
+always appreciated.
 
 ## Credits
 

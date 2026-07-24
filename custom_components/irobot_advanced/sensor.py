@@ -21,6 +21,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from .const import CYCLE_MAP, DOMAIN, ERROR_MAP, PHASE_MAP
 from .coordinator import IRobotCoordinator
 from .entity import IRobotEntity
+from .schedule import parse_legacy, parse_v2
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -171,11 +172,21 @@ def _recent_missions(coordinator: IRobotCoordinator) -> list[dict[str, Any]]:
 
 
 def _schedule_summary(coordinator: IRobotCoordinator) -> str:
-    sched = coordinator.reported.get("cleanSchedule") or {}
-    cycle = sched.get("cycle") or []
-    enabled = sum(1 for c in cycle if c != "none")
-    if not cycle:
+    """Summarise whichever schedule format the robot reports."""
+    reported = coordinator.reported
+    if "cleanSchedule2" in reported:
+        slots = parse_v2(reported["cleanSchedule2"])
+        enabled = sum(1 for slot in slots if slot.enabled)
+        rooms = sum(1 for slot in slots if slot.regions)
+        if not slots:
+            return "unknown"
+        suffix = f", {rooms} room-specific" if rooms else ""
+        return f"{enabled} day(s) scheduled{suffix}"
+
+    sched = reported.get("cleanSchedule") or {}
+    if not sched.get("cycle"):
         return "unknown"
+    enabled = sum(1 for slot in parse_legacy(sched) if slot.enabled)
     return f"{enabled} day(s) scheduled"
 
 

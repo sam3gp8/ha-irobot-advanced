@@ -234,6 +234,10 @@
         "schedule": {
           "name": "Schedule",
           "description": "List of day/enabled/hour/minute entries."
+        },
+        "use_v2": {
+          "name": "Force cleanSchedule2",
+          "description": "Force the newer room-aware schedule format even without room targeting."
         }
       }
     },

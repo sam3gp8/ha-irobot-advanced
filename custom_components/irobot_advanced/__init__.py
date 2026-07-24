@@ -33,6 +33,12 @@ from .const import (
 )
 from .coordinator import IRobotCoordinator
 from .frontend import async_register_frontend, async_remove_frontend
+from .schedule import (
+    ScheduleSlot,
+    build_legacy,
+    build_v2,
+    has_room_targeting,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -58,6 +64,7 @@ CLEAN_ROOMS_SCHEMA = vol.Schema(
 SET_SCHEDULE_SCHEMA = vol.Schema(
     {
         vol.Required("entity_id"): cv.entity_ids,
+        vol.Optional("use_v2", default=False): cv.boolean,
         vol.Required("schedule"): vol.All(
             cv.ensure_list,
             [
@@ -67,6 +74,10 @@ SET_SCHEDULE_SCHEMA = vol.Schema(
                         vol.Required("enabled"): cv.boolean,
                         vol.Optional("hour", default=10): vol.All(int, vol.Range(0, 23)),
                         vol.Optional("minute", default=0): vol.All(int, vol.Range(0, 59)),
+                        vol.Optional("pmap_id"): cv.string,
+                        vol.Optional("regions", default=list): vol.All(
+                            cv.ensure_list, [cv.string]
+                        ),
                     }
                 )
             ],
@@ -172,18 +183,25 @@ def _async_register_services(hass: HomeAssistant) -> None:
             coordinator.local.clean_regions(pmap_id, regions)
 
     async def _set_schedule(call: ServiceCall) -> None:
-        for coordinator in _coordinators_for(call):
-            cycle = ["none"] * 7
-            hours = [0] * 7
-            minutes = [0] * 7
-            for slot in call.data["schedule"]:
-                idx = WEEKDAYS.index(slot["day"])
-                cycle[idx] = "start" if slot["enabled"] else "none"
-                hours[idx] = slot.get("hour", 10)
-                minutes[idx] = slot.get("minute", 0)
-            coordinator.local.set_preference(
-                cleanSchedule={"cycle": cycle, "h": hours, "m": minutes}
+        slots = [
+            ScheduleSlot(
+                day=item["day"],
+                enabled=item["enabled"],
+                hour=item.get("hour", 10),
+                minute=item.get("minute", 0),
+                pmap_id=item.get("pmap_id"),
+                regions=[str(r) for r in item.get("regions", [])],
             )
+            for item in call.data["schedule"]
+        ]
+        # Room targeting needs v2; without it, prefer the universally accepted
+        # legacy format. The service can force v2 explicitly.
+        use_v2 = call.data.get("use_v2") or has_room_targeting(slots)
+        for coordinator in _coordinators_for(call):
+            if use_v2:
+                coordinator.local.set_preference(cleanSchedule2=build_v2(slots))
+            else:
+                coordinator.local.set_preference(cleanSchedule=build_legacy(slots))
 
     async def _empty_bin(call: ServiceCall) -> None:
         for coordinator in _coordinators_for(call):
