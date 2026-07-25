@@ -61,7 +61,14 @@ active states). Crucially, do **not** rebuild the tab body unless the tab or the
 underlying data actually changed. Event handlers are already delegated on a
 stable parent, so keeping that parent alive fixes the clicks.
 
-## BUG 5 — 0 rooms despite 3 stored maps (confirmed: region_count 0)
+## BUG 5 — 0 rooms despite 3 stored maps — FIXED (0.6.1) ✓
+
+**Confirmed resolved by the second dump: `region_count: 13`, and
+`umf_top_level_keys` now shows `regions`, `zones`, `keepoutzones`,
+`observed_zones`, `map_header` — the UMF loads and regions parse.** Original
+analysis below, kept for the record.
+
+
 
 Two compounding problems:
 
@@ -79,7 +86,12 @@ Two compounding problems:
 key on a UMF blob we never loaded. This is Session 3 territory (UMF), now
 unblocked by real data — see below.
 
-## BUG 6 — cleanSchedule2 inference was WRONG (now corrected by real sample)
+## BUG 6 — cleanSchedule2 — FIXED (0.6.1) ✓
+
+Real sample captured and the format rewritten to match; round-trips against the
+live payload. Original (wrong) inference documented below.
+
+
 
 The real payload:
 

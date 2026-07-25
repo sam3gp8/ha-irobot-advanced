@@ -20,6 +20,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the stream actually plays. Until this lands the project stays on `0.x`.
 - Replace heuristic UMF layer parsing once enough map samples are available.
 
+## [0.6.2] — 2026-07-24
+
+Verified against a second live dump on 0.6.1. The 0.6.1 fixes held:
+`region_count` went from 0 to **13**, and the UMF now loads with
+`regions`/`zones`/`keepoutzones` present.
+
+### Fixed
+
+- **Room select no longer hides unnamed regions.** It filtered options to
+  regions with a `name`, so a map whose regions lack names would show nothing
+  despite existing. Unnamed regions now appear as `Room N`, matching the card.
+
+### Changed
+
+- **Diagnostics goes one level deeper.** It now reports `region_object_keys`,
+  `zone_object_keys` and `mission_timeline_keys`, so the region-name field and
+  the obstacle-image location can be confirmed from a dump without pasting map
+  data. These are the two items still open below.
+
+### Still open
+
+- Region **names**: the parsing path is correct (13 regions found), but whether
+  this account's maps carry human names is not yet confirmed — the new
+  `region_object_keys` in diagnostics will show it.
+- Obstacle snapshots: still `obstacle_count: 0`. The mission `timeline` key is
+  the likely home for obstacle images; `mission_timeline_keys` in the next dump
+  will confirm.
+
 ## [0.6.1] — 2026-07-24
 
 First release audited against a live j-series robot (sku j955020, HA 2026.7.3).
@@ -284,7 +312,8 @@ Initial release.
 - `PROTOCOL.md` documenting the discovery, MQTT, map, schedule and live-view
   protocols.
 
-[Unreleased]: https://github.com/sam3gp8/ha-irobot-advanced/compare/v0.6.1...HEAD
+[Unreleased]: https://github.com/sam3gp8/ha-irobot-advanced/compare/v0.6.2...HEAD
+[0.6.2]: https://github.com/sam3gp8/ha-irobot-advanced/compare/v0.6.1...v0.6.2
 [0.6.1]: https://github.com/sam3gp8/ha-irobot-advanced/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/sam3gp8/ha-irobot-advanced/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/sam3gp8/ha-irobot-advanced/compare/v0.4.0...v0.5.0

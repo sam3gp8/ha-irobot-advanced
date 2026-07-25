@@ -28,10 +28,15 @@ class IRobotRoomSelect(IRobotEntity, SelectEntity):
         super().__init__(coordinator, "room")
         self._current: str | None = None
 
+    @staticmethod
+    def _label(region: dict) -> str:
+        """A stable label even when the map has no room names yet."""
+        return region.get("name") or f"Room {region.get('region_id', '?')}"
+
     @property
     def options(self) -> list[str]:
-        names = [r["name"] for r in self.coordinator.regions if r.get("name")]
-        return names or ["No maps available"]
+        regions = self.coordinator.regions
+        return [self._label(r) for r in regions] or ["No maps available"]
 
     @property
     def current_option(self) -> str | None:
@@ -39,7 +44,7 @@ class IRobotRoomSelect(IRobotEntity, SelectEntity):
 
     async def async_select_option(self, option: str) -> None:
         match = next(
-            (r for r in self.coordinator.regions if r.get("name") == option), None
+            (r for r in self.coordinator.regions if self._label(r) == option), None
         )
         if not match:
             return

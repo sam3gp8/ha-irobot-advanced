@@ -64,7 +64,9 @@ async def async_get_config_entry_diagnostics(
             "obstacle_count": len(coordinator.obstacles),
         },
         # Shapes only -- useful for fixing the heuristic parsers without
-        # anyone having to paste their map data into an issue.
+        # anyone having to paste their map data into an issue. Goes one level
+        # deeper into the structures we're still nailing down (region objects,
+        # mission timeline) so their field names are visible without the data.
         "shapes": {
             "pmap_keys": sorted({k for p in coordinator.pmaps for k in p}),
             "mission_keys": sorted(
@@ -73,5 +75,33 @@ async def async_get_config_entry_diagnostics(
             "umf_top_level_keys": sorted(
                 {k for umf in coordinator.pmap_details.values() for k in umf}
             ),
+            "region_object_keys": _first_child_keys(
+                coordinator.pmap_details.values(), "regions"
+            ),
+            "zone_object_keys": _first_child_keys(
+                coordinator.pmap_details.values(), "zones"
+            ),
+            "mission_timeline_keys": _first_timeline_keys(coordinator.missions),
         },
     }
+
+
+def _first_child_keys(details: Any, list_key: str) -> list[str]:
+    """Keys of the first object inside ``detail[list_key]`` across maps."""
+    for detail in details:
+        items = detail.get(list_key) or []
+        for item in items:
+            if isinstance(item, dict):
+                return sorted(item.keys())
+    return []
+
+
+def _first_timeline_keys(missions: Any) -> list[str]:
+    """Keys of the first mission-timeline entry, where obstacles may live."""
+    for mission in missions[:10]:
+        timeline = mission.get("timeline")
+        if isinstance(timeline, list) and timeline and isinstance(timeline[0], dict):
+            return sorted(timeline[0].keys())
+        if isinstance(timeline, dict):
+            return sorted(timeline.keys())
+    return []
