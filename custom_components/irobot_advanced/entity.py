@@ -31,6 +31,7 @@ class IRobotEntity(CoordinatorEntity[IRobotCoordinator]):
             manufacturer="iRobot",
             name=self.coordinator.robot_name,
             model=reported.get("sku"),
+            model_id=reported.get("sku"),
             sw_version=(reported.get("softwareVer") or reported.get("sw_ver")),
             configuration_url=f"http://{self.coordinator.host}",
         )

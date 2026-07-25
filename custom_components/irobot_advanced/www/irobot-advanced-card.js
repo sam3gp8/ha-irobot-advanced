@@ -157,7 +157,42 @@ class IRobotAdvancedCard extends HTMLElement {
   set hass(hass) {
     this._hass = hass;
     if (!this._built) this._build();
-    this._render();
+    // Only re-render when something this view depends on changed. Re-rendering
+    // on every state push rebuilds the body innerHTML and steals clicks.
+    const sig = this._signature();
+    if (sig !== this._lastSig) {
+      this._lastSig = sig;
+      this._render();
+    }
+  }
+
+  _signature() {
+    const id = this._vacuumId();
+    const vac = id && this._hass.states[id];
+    if (!vac) return "none";
+    const a = vac.attributes || {};
+    // Include only fields the current tab renders, plus the tab itself.
+    const base = [
+      this._tab,
+      vac.state,
+      a.battery_level,
+      a.phase,
+      a.error,
+      a.fan_speed,
+      a.cycle,
+    ];
+    if (this._tab === "control") {
+      base.push((a.regions || []).length, a.square_feet, a.bin_full);
+    } else if (this._tab === "obstacles") {
+      base.push(
+        this._siblings(id).filter((e) => e.startsWith("image.")).length
+      );
+    } else if (this._tab === "history") {
+      const sid = this._find(id, "sensor", "_total_missions");
+      base.push(sid && this._hass.states[sid]?.state);
+    }
+    // Map tab intentionally excluded: its refresh is driven by the timer.
+    return JSON.stringify(base);
   }
 
   connectedCallback() {
@@ -236,6 +271,7 @@ class IRobotAdvancedCard extends HTMLElement {
       if (!button) return;
       this._tab = button.dataset.tab;
       this._cacheBust = Date.now();
+      this._lastSig = this._signature();
       this._render();
     });
 

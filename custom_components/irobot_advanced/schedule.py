@@ -8,31 +8,31 @@ Two coexist on iRobot robots:
 
     {"cycle": ["none","start",...], "h": [0,9,...], "m": [0,30,...]}
 
-Proven and accepted by every Wi-Fi robot to date. This module reads and writes
-it losslessly.
+**v2** (``cleanSchedule2``) — a list of entries, each grouping multiple days.
+Structure confirmed from a live j-series robot:
 
-**v2** (``cleanSchedule2``) — a list of per-entry objects, room-aware. The
-field is confirmed present and deserializable in the 7.18.0 app schema (it sits
-in the same schema cluster as ``CleanScheduleMultipleMapping``, ``Enabled``,
-``StartTime`` and ``Cycle``), but the exact object shape is assembled in the
-app's serializer layer and is **not** recoverable statically. The structure
-below is the best inference from that field cluster and from how the room-clean
-command (``pmap_id`` / ``regions``) is shaped elsewhere in the protocol.
+.. code-block:: json
 
-Because the v2 shape is inferred, this module is conservative:
+    [{"enabled": true,
+      "type": 0,
+      "start": {"day": [3,4,5,6], "hour": 12, "min": 30},
+      "cmdStr": "{'command': 'start', 'params': {...}, 'time': ..., 'initiator': 'schedule'}"}]
 
-* reads tolerate several plausible key spellings,
-* writes default to the legacy format (universally accepted),
-* v2 writes are opt-in and clearly marked, so a robot that rejects the inferred
-  shape fails safely rather than corrupting the stored schedule.
+Key facts (verified, no longer inferred):
 
-One real ``cleanSchedule2`` payload — visible in a diagnostics dump once cloud
-access is working — turns the inference below into fact. The ``TODO`` markers
-show exactly which keys to confirm.
+* ``start.day`` is a **list** of weekday integers (0=Sunday), so one entry can
+  cover several days that share a time and command.
+* Time is ``start.hour`` / ``start.min``.
+* ``type`` is 0 for a normal clean.
+* ``cmdStr`` is a **stringified command** (note: single-quoted, Python-repr
+  style, not strict JSON) carrying the start command and its params. Room
+  targeting, when present, lives inside this command, not as sibling keys.
 """
 
 from __future__ import annotations
 
+import ast
+import json
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -48,7 +48,8 @@ class ScheduleSlot:
     enabled: bool
     hour: int = 10
     minute: int = 0
-    # v2 only: restrict this run to specific rooms on a specific map.
+    # v2 extras carried through the command string.
+    params: dict[str, Any] = field(default_factory=dict)
     pmap_id: str | None = None
     regions: list[str] = field(default_factory=list)
 
@@ -99,70 +100,129 @@ def build_legacy(slots: list[ScheduleSlot]) -> dict[str, Any]:
 # ------------------------------------------------------------------------ v2
 
 
-def parse_v2(raw: Any) -> list[ScheduleSlot]:
-    """Read a ``cleanSchedule2`` value into slots, tolerantly.
+def _loads_cmdstr(cmd_str: str) -> dict[str, Any]:
+    """Parse the quirky single-quoted ``cmdStr`` into a dict.
 
-    Accepts a list of entry objects. Key spellings are probed because the exact
-    names are inferred; whichever the robot actually uses, the first match
-    wins.
+    It is Python-repr style (single quotes, ``true``/``false`` lowercased), so
+    try strict JSON first, then a safe literal-eval fallback with the booleans
+    normalised.
     """
-    if isinstance(raw, list):
-        entries = raw
-    elif isinstance(raw, dict):
-        entries = raw.get("entries", [])
-    else:
-        entries = []
+    try:
+        return json.loads(cmd_str)
+    except (ValueError, TypeError):
+        pass
+    try:
+        return ast.literal_eval(cmd_str)
+    except (ValueError, SyntaxError):
+        return {}
+
+
+def _dumps_cmdstr(command: dict[str, Any]) -> str:
+    """Render a command dict back to the robot's expected string form.
+
+    The robot emits Python-repr style, but accepts valid JSON on input; use
+    JSON for correctness.
+    """
+    return json.dumps(command)
+
+
+def parse_v2(raw: Any) -> list[ScheduleSlot]:
+    """Expand a ``cleanSchedule2`` value into one slot per day."""
+    entries = raw if isinstance(raw, list) else []
     slots: list[ScheduleSlot] = []
     for entry in entries:
         if not isinstance(entry, dict):
             continue
-        day = _first(entry, ("day", "d", "weekday"))
-        if isinstance(day, int):
-            day = WEEKDAY_ORDER[day % 7]
-        elif isinstance(day, str) and day[:3].lower() in WEEKDAY_ORDER:
-            day = day[:3].lower()
-        else:
+        start = entry.get("start") or {}
+        days = start.get("day")
+        if isinstance(days, int):
+            days = [days]
+        if not isinstance(days, list):
             continue
+        hour = int(start.get("hour", 0))
+        minute = int(start.get("min", start.get("minute", 0)))
+        enabled = bool(entry.get("enabled", True))
 
-        start = _first(entry, ("start_time", "startTime", "start"))
-        hour, minute = _split_start(start, entry)
+        command = _loads_cmdstr(entry.get("cmdStr", "")) if entry.get("cmdStr") else {}
+        params = command.get("params", {}) if isinstance(command, dict) else {}
+        pmap_id = command.get("pmap_id")
+        regions = [
+            str(r.get("region_id", r)) if isinstance(r, dict) else str(r)
+            for r in (command.get("regions") or [])
+        ]
 
-        slots.append(
-            ScheduleSlot(
-                day=day,
-                enabled=bool(_first(entry, ("enabled", "enable", "active"), default=True)),
-                hour=hour,
-                minute=minute,
-                pmap_id=_first(entry, ("pmap_id", "pmapId", "map_id")),
-                regions=_regions(entry),
+        for day_int in days:
+            if not isinstance(day_int, int) or not 0 <= day_int <= 6:
+                continue
+            slots.append(
+                ScheduleSlot(
+                    day=WEEKDAY_ORDER[day_int],
+                    enabled=enabled,
+                    hour=hour,
+                    minute=minute,
+                    params=dict(params),
+                    pmap_id=pmap_id,
+                    regions=regions,
+                )
             )
-        )
     return slots
 
 
 def build_v2(slots: list[ScheduleSlot]) -> list[dict[str, Any]]:
-    """Render slots into an inferred ``cleanSchedule2`` list.
+    """Render slots into ``cleanSchedule2``, grouping days that match.
 
-    TODO(confirm-with-sample): the key names below (``day``, ``enabled``,
-    ``start_time`` as ``{"h","m"}``, ``pmap_id``, ``regions``) are inferred
-    from the schema field cluster. Verify against a real ``cleanSchedule2``
-    payload from a diagnostics dump and adjust here if they differ.
+    Entries are grouped by (time, enabled, command) so days sharing a schedule
+    collapse into one entry with a ``start.day`` list, mirroring what the robot
+    itself stores.
     """
-    out: list[dict[str, Any]] = []
+    # Group key -> (representative slot, [day ints])
+    groups: dict[tuple, list[int]] = {}
+    order: list[tuple] = []
+    reps: dict[tuple, ScheduleSlot] = {}
     for slot in slots:
-        entry: dict[str, Any] = {
-            "day": slot.day,
-            "enabled": slot.enabled,
-            "start_time": {"h": slot.hour, "m": slot.minute},
-            "type": "clean",
+        if not slot.enabled:
+            continue
+        params_key = tuple(sorted(slot.params.items()))
+        regions_key = tuple(slot.regions)
+        key = (slot.hour, slot.minute, slot.pmap_id, regions_key, params_key)
+        if key not in groups:
+            groups[key] = []
+            reps[key] = slot
+            order.append(key)
+        groups[key].append(slot.day_index)
+
+    out: list[dict[str, Any]] = []
+    for key in order:
+        slot = reps[key]
+        command: dict[str, Any] = {
+            "command": "start",
+            "params": slot.params
+            or {
+                "carpetBoost": True,
+                "noAutoPasses": True,
+                "twoPass": True,
+                "vacHigh": False,
+            },
+            "initiator": "schedule",
         }
         if slot.pmap_id:
-            entry["pmap_id"] = slot.pmap_id
+            command["pmap_id"] = slot.pmap_id
         if slot.regions:
-            entry["regions"] = [
+            command["regions"] = [
                 {"region_id": str(r), "type": "rid"} for r in slot.regions
             ]
-        out.append(entry)
+        out.append(
+            {
+                "enabled": True,
+                "type": 0,
+                "start": {
+                    "day": sorted(set(groups[key])),
+                    "hour": slot.hour,
+                    "min": slot.minute,
+                },
+                "cmdStr": _dumps_cmdstr(command),
+            }
+        )
     return out
 
 
@@ -172,34 +232,3 @@ def build_v2(slots: list[ScheduleSlot]) -> list[dict[str, Any]]:
 def has_room_targeting(slots: list[ScheduleSlot]) -> bool:
     """True if any slot targets specific rooms (needs v2)."""
     return any(slot.pmap_id or slot.regions for slot in slots)
-
-
-def _first(entry: dict[str, Any], keys: tuple[str, ...], default: Any = None) -> Any:
-    for key in keys:
-        if key in entry:
-            return entry[key]
-    return default
-
-
-def _split_start(start: Any, entry: dict[str, Any]) -> tuple[int, int]:
-    if isinstance(start, dict):
-        return int(start.get("h", 0)), int(start.get("m", 0))
-    if isinstance(start, int):  # minutes since midnight
-        return start // 60, start % 60
-    if isinstance(start, str) and ":" in start:  # "HH:MM"
-        hh, _, mm = start.partition(":")
-        return int(hh), int(mm)
-    return int(entry.get("h", entry.get("hour", 0))), int(entry.get("m", entry.get("minute", 0)))
-
-
-def _regions(entry: dict[str, Any]) -> list[str]:
-    raw = _first(entry, ("regions", "rooms", "region_ids"), default=[])
-    out: list[str] = []
-    for item in raw or []:
-        if isinstance(item, dict):
-            rid = item.get("region_id") or item.get("id")
-            if rid is not None:
-                out.append(str(rid))
-        else:
-            out.append(str(item))
-    return out

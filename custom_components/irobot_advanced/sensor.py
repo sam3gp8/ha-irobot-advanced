@@ -109,6 +109,7 @@ SENSORS: tuple[IRobotSensorDescription, ...] = (
         key="wifi_signal",
         translation_key="wifi_signal",
         device_class=SensorDeviceClass.SIGNAL_STRENGTH,
+        native_unit_of_measurement="dBm",
         state_class=SensorStateClass.MEASUREMENT,
         entity_category=EntityCategory.DIAGNOSTIC,
         value_fn=lambda c: (c.reported.get("signal") or {}).get("rssi"),

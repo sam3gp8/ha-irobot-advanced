@@ -146,14 +146,25 @@ class IRobotCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             pmap_id = pmap.get("pmap_id") or pmap.get("id")
             if not pmap_id:
                 continue
-            versions = await self.cloud.async_get_pmap_versions(self.blid, pmap_id)
-            if not versions:
-                continue
-            latest = versions[0].get("version_id") or versions[0].get("id")
-            if latest:
-                self.pmap_details[pmap_id] = await self.cloud.async_get_pmap_umf(
-                    self.blid, pmap_id, latest
-                )
+            # Real pmap shape carries the active version inline; the details may
+            # already include regions. Fall back to the versioned UMF endpoint
+            # only if we still have no detail.
+            detail = pmap.get("active_pmapv_details")
+            version = (
+                pmap.get("active_pmapv_id")
+                or pmap.get("robot_pmapv_id")
+                or pmap.get("user_pmapv_id")
+            )
+            if not detail and version:
+                try:
+                    detail = await self.cloud.async_get_pmap_umf(
+                        self.blid, pmap_id, version
+                    )
+                except Exception as err:
+                    _LOGGER.debug("pmap detail fetch failed for %s: %s", pmap_id, err)
+                    detail = None
+            if detail:
+                self.pmap_details[pmap_id] = detail
 
         self.missions = await self.cloud.async_get_mission_history(self.blid)
         self.obstacles = await self.cloud.async_get_obstacle_snapshots(self.blid)
@@ -191,13 +202,26 @@ class IRobotCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     @property
     def regions(self) -> list[dict[str, Any]]:
         """Flatten every named region across all known maps."""
-        return [
-            {
-                "pmap_id": pmap_id,
-                "region_id": str(region.get("id", region.get("region_id"))),
-                "name": region.get("name"),
-                "type": region.get("region_type", region.get("type")),
-            }
-            for pmap_id, umf in self.pmap_details.items()
-            for region in umf.get("regions", []) or []
-        ]
+        out: list[dict[str, Any]] = []
+        for pmap_id, detail in self.pmap_details.items():
+            regions = (
+                detail.get("regions")
+                or detail.get("rooms")
+                or (detail.get("active_pmapv_details") or {}).get("regions")
+                or []
+            )
+            for region in regions:
+                if not isinstance(region, dict):
+                    continue
+                out.append(
+                    {
+                        "pmap_id": pmap_id,
+                        "region_id": str(
+                            region.get("region_id", region.get("id", ""))
+                        ),
+                        "name": region.get("name")
+                        or region.get("region_name"),
+                        "type": region.get("region_type", region.get("type")),
+                    }
+                )
+        return out

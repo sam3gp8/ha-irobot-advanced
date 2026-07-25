@@ -20,6 +20,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the stream actually plays. Until this lands the project stays on `0.x`.
 - Replace heuristic UMF layer parsing once enough map samples are available.
 
+## [0.6.1] — 2026-07-24
+
+First release audited against a live j-series robot (sku j955020, HA 2026.7.3).
+Several bugs that only surface on real hardware are fixed.
+
+### Fixed
+
+- **`cleanSchedule2` shape corrected against a real payload.** The inferred
+  structure in 0.6.0 was wrong on every point. The real format groups multiple
+  weekdays per entry (`start.day: [ints]`, 0=Sunday), uses `start.hour`/
+  `start.min`, and carries the command — including any room targeting — inside a
+  stringified `cmdStr`, not as sibling keys. Reading and writing now match what
+  the robot stores, verified by round-trip against the live payload.
+- **Wi-Fi signal sensor** now reports its unit as `dBm`, fixing a device-class
+  validation error on HA 2026.7.
+- **Battery deprecation.** The vacuum no longer sets `battery_level` or the
+  `BATTERY` feature (removed in HA 2026.8). The dedicated battery sensor already
+  covers it.
+- **Fan speed now works on j/s-series robots.** These report no `suctionLevel`;
+  the control now maps eco/standard/performance onto the `vacHigh`/`carpetBoost`
+  pair the robot actually honours, for both reading and writing.
+- **Sidebar panel and card buttons.** The card re-rendered its whole body on
+  every state push, stealing clicks mid-render — which made the panel unusable.
+  Rendering is now gated on a change signature, so the DOM (and its click
+  targets) stays stable between updates.
+- **Rooms empty despite stored maps.** The pmap→region path walked a versions
+  list the API doesn't return in this shape; it now reads the active version and
+  region data the pmap actually provides.
+- Robot model surfaced on the device (`model_id`).
+
+### Known, still open
+
+- Obstacle snapshots remain empty: the images are not under the mission-summary
+  keys probed today. Needs the mission-detail payload to locate them.
+- Region names depend on the pmap detail endpoint returning them; confirmed the
+  path, not yet the field names on this account.
+
 ## [0.6.0] — 2026-07-24
 
 ### Added
@@ -247,7 +284,8 @@ Initial release.
 - `PROTOCOL.md` documenting the discovery, MQTT, map, schedule and live-view
   protocols.
 
-[Unreleased]: https://github.com/sam3gp8/ha-irobot-advanced/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/sam3gp8/ha-irobot-advanced/compare/v0.6.1...HEAD
+[0.6.1]: https://github.com/sam3gp8/ha-irobot-advanced/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/sam3gp8/ha-irobot-advanced/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/sam3gp8/ha-irobot-advanced/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/sam3gp8/ha-irobot-advanced/compare/v0.3.1...v0.4.0

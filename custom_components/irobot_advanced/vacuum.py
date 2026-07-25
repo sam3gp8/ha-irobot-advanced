@@ -58,7 +58,6 @@ class IRobotVacuum(IRobotEntity, StateVacuumEntity):
         | VacuumEntityFeature.RETURN_HOME
         | VacuumEntityFeature.LOCATE
         | VacuumEntityFeature.STATE
-        | VacuumEntityFeature.BATTERY
         | VacuumEntityFeature.FAN_SPEED
         | VacuumEntityFeature.SEND_COMMAND
     )
@@ -78,19 +77,19 @@ class IRobotVacuum(IRobotEntity, StateVacuumEntity):
         return ACTIVITY_MAP.get(friendly, VacuumActivity.IDLE)
 
     @property
-    def battery_level(self) -> int | None:
-        return self.coordinator.reported.get("batPct")
-
-    @property
     def fan_speed(self) -> str | None:
-        level = self.coordinator.reported.get("suctionLevel")
-        for name, value in SUCTION_LEVELS.items():
-            if value == level:
-                return name
-        # Older robots expose vacHigh/carpetBoost instead of suctionLevel.
-        if self.coordinator.reported.get("vacHigh"):
+        reported = self.coordinator.reported
+        # Newer j/s robots have no suctionLevel; they use vacHigh + carpetBoost.
+        if "suctionLevel" in reported:
+            level = reported.get("suctionLevel")
+            for name, value in SUCTION_LEVELS.items():
+                if value == level:
+                    return name
+        if reported.get("vacHigh"):
             return "performance"
-        return "standard"
+        if reported.get("carpetBoost"):
+            return "standard"
+        return "eco"
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
@@ -141,9 +140,23 @@ class IRobotVacuum(IRobotEntity, StateVacuumEntity):
         self.coordinator.local.send_command("find")
 
     async def async_set_fan_speed(self, fan_speed: str, **kwargs: Any) -> None:
-        if (level := SUCTION_LEVELS.get(fan_speed)) is None:
+        reported = self.coordinator.reported
+        # Prefer suctionLevel when the robot supports it.
+        if "suctionLevel" in reported:
+            if (level := SUCTION_LEVELS.get(fan_speed)) is not None:
+                self.coordinator.local.set_preference(suctionLevel=level)
             return
-        self.coordinator.local.set_preference(suctionLevel=level)
+        # Otherwise map onto the vacHigh/carpetBoost pair this robot honours:
+        #   eco         -> both off
+        #   standard    -> carpetBoost auto (vacHigh off)
+        #   performance -> vacHigh on
+        mapping = {
+            "eco": {"vacHigh": False, "carpetBoost": False},
+            "standard": {"vacHigh": False, "carpetBoost": True},
+            "performance": {"vacHigh": True, "carpetBoost": False},
+        }
+        if (pref := mapping.get(fan_speed)) is not None:
+            self.coordinator.local.set_preference(**pref)
 
     async def async_send_command(
         self,
