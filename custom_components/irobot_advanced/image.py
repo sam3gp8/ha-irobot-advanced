@@ -37,6 +37,9 @@ class IRobotObstacleImage(IRobotEntity, ImageEntity):
     """One slot in the rolling obstacle-snapshot buffer."""
 
     _attr_translation_key = "obstacle"
+    # The obstacle-image endpoint has not been identified (see README). These
+    # entities stay disabled rather than sitting permanently unavailable.
+    _attr_entity_registry_enabled_default = False
 
     def __init__(
         self, hass: HomeAssistant, coordinator: IRobotCoordinator, index: int

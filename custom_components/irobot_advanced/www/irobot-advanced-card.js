@@ -159,10 +159,21 @@ class IRobotAdvancedCard extends HTMLElement {
     if (!this._built) this._build();
     // Only re-render when something this view depends on changed. Re-rendering
     // on every state push rebuilds the body innerHTML and steals clicks.
-    const sig = this._signature();
-    if (sig !== this._lastSig) {
-      this._lastSig = sig;
-      this._render();
+    try {
+      const sig = this._signature();
+      if (sig !== this._lastSig) {
+        this._lastSig = sig;
+        this._render();
+      }
+    } catch (err) {
+      // Never let a signature/render error leave a blank card.
+      console.error("irobot-advanced-card:", err);
+      this._lastSig = null;
+      try {
+        this._render();
+      } catch (err2) {
+        console.error("irobot-advanced-card render failed:", err2);
+      }
     }
   }
 
@@ -175,7 +186,7 @@ class IRobotAdvancedCard extends HTMLElement {
     const base = [
       this._tab,
       vac.state,
-      this._batteryPct(),
+      this._batteryPct(id),
       a.phase,
       a.error,
       a.fan_speed,
@@ -225,6 +236,7 @@ class IRobotAdvancedCard extends HTMLElement {
 
   /** Every entity belonging to the same device as the vacuum. */
   _siblings(vacuumId) {
+    if (!vacuumId) return [];
     const registry = this._hass?.entities || {};
     const deviceId = registry[vacuumId]?.device_id;
     if (deviceId) {
@@ -305,19 +317,24 @@ class IRobotAdvancedCard extends HTMLElement {
     else body.innerHTML = banner + this._history();
   }
 
-  _batteryPct() {
-    // Vacuum battery_level was removed (HA deprecation); read the battery sensor.
-    const sid = this._find(this._vacId, "sensor", "_battery");
+  _batteryPct(vacuumId) {
+    // Vacuum battery_level was removed (HA deprecation); read the battery
+    // sensor instead. Takes the id explicitly because this runs from
+    // _signature(), before _render() assigns this._vacId.
+    const id = vacuumId || this._vacId;
+    if (!id) return null;
+    const sid = this._find(id, "sensor", "_battery");
     const s = sid && this._hass.states[sid];
     if (s && s.state !== "unknown" && s.state !== "unavailable") {
-      return Math.round(Number(s.state));
+      const n = Number(s.state);
+      if (Number.isFinite(n)) return Math.round(n);
     }
-    return this._vac.attributes.battery_level ?? null;
+    return this._hass.states[id]?.attributes?.battery_level ?? null;
   }
 
   _renderHead() {
     const attrs = this._vac.attributes;
-    const battery = this._batteryPct();
+    const battery = this._batteryPct(this._vacId);
     const name = attrs.friendly_name || "Roomba";
     this._el.head.innerHTML = `
       <div class="avatar"><img
@@ -437,9 +454,9 @@ class IRobotAdvancedCard extends HTMLElement {
       );
 
     if (!images.length) {
-      return `<div class="empty">No obstacle snapshots to show.<br>
-        The Roomba only keeps these when Obstacle Image Review is used in the
-        iRobot app, and they expire after a while.</div>`;
+      return `<div class="empty">Obstacle snapshots aren&rsquo;t available.<br>
+        The API that serves these images hasn&rsquo;t been identified yet, so the
+        integration can&rsquo;t fetch them. Everything else on this robot works.</div>`;
     }
 
     return `<div class="obs">${images

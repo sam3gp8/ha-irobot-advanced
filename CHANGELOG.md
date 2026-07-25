@@ -20,6 +20,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the stream actually plays. Until this lands the project stays on `0.x`.
 - Replace heuristic UMF layer parsing once enough map samples are available.
 
+## [0.6.6] — 2026-07-25
+
+### Fixed
+
+- **Sidebar panel rendered completely blank.** A regression from 0.6.4: the new
+  battery lookup read `this._vacId`, which is only assigned during render — so
+  it threw on the first state update, before anything painted. The battery
+  helper now takes the entity id explicitly, sibling lookups guard against a
+  missing id, and a render error can no longer leave a blank card.
+
+### Changed
+
+- **Obstacle snapshots marked unavailable, honestly.** The 0.6.5 instrumentation
+  answered the question: `omap_count: 0` — the omaps endpoint returns nothing
+  for this robot, so the 0.6.3 redirect was wrong too. Re-checking the app
+  binary, the only obstacle-image path present is
+  `/v1/user/imageupload/removalRequest` (deletion) — there is no list endpoint
+  to recover. Rather than guess a fourth time, the five obstacle image entities
+  are now **disabled by default** instead of sitting permanently unavailable,
+  and the card says plainly that the API hasn't been identified.
+
+### Note on obstacle images
+
+Three successive attempts (mission history, mission timeline, omap spatial data)
+all came back empty, and the app binary contains no list endpoint for these
+images. The robot does capture them (`imgUpload: 1`, `odoa: 7`), so they exist —
+they're just served over a path this project hasn't found. Anyone with a packet
+capture of the iRobot app loading the obstacle-review screen could settle it in
+one look.
+
 ## [0.6.5] — 2026-07-25
 
 ### Fixed
@@ -392,7 +422,8 @@ Initial release.
 - `PROTOCOL.md` documenting the discovery, MQTT, map, schedule and live-view
   protocols.
 
-[Unreleased]: https://github.com/sam3gp8/ha-irobot-advanced/compare/v0.6.5...HEAD
+[Unreleased]: https://github.com/sam3gp8/ha-irobot-advanced/compare/v0.6.6...HEAD
+[0.6.6]: https://github.com/sam3gp8/ha-irobot-advanced/compare/v0.6.5...v0.6.6
 [0.6.5]: https://github.com/sam3gp8/ha-irobot-advanced/compare/v0.6.4...v0.6.5
 [0.6.4]: https://github.com/sam3gp8/ha-irobot-advanced/compare/v0.6.3...v0.6.4
 [0.6.3]: https://github.com/sam3gp8/ha-irobot-advanced/compare/v0.6.2...v0.6.3
