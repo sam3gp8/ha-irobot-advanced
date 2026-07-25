@@ -20,6 +20,60 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the stream actually plays. Until this lands the project stays on `0.x`.
 - Replace heuristic UMF layer parsing once enough map samples are available.
 
+## [0.6.5] — 2026-07-25
+
+### Fixed
+
+- **Unmapped error codes no longer show "Unknown".** The known-code table
+  doesn't cover every firmware revision (a live j9 reported error 88, which
+  isn't in it). Unmapped codes now fall back to the reported phase plus the raw
+  code — e.g. "Stuck (code 88)" — instead of "Unknown (88)".
+- The vacuum now exposes `not_ready_code` alongside the error, which carries
+  additional state the robot reports when it can't start.
+
+### Changed
+
+- **Obstacle fetching is now debuggable.** The omap list result (count and
+  keys) is logged and captured in diagnostics, so an empty obstacle list can be
+  told apart from a wrong field name. Previous releases couldn't distinguish
+  "the API returned nothing" from "we parsed it wrong".
+
+### Correction
+
+- Earlier releases attributed the empty obstacle list to the account having no
+  retained snapshots. That was wrong: the test robot reports `odoa: 7`
+  (obstacle detection supported), `imgUpload: 1` (uploads enabled) and
+  `hazard_analysis_report: 1`, and demonstrably encounters obstacles. The empty
+  list is more likely a fetch or parsing problem on our side, which the new
+  diagnostics will identify.
+
+## [0.6.4] — 2026-07-25
+
+### Fixed
+
+- **Dashboard battery showed `--%`.** Removing the deprecated vacuum
+  `battery_level` in 0.6.1 left the card still reading that attribute. The card
+  now reads the battery sensor (`sensor.*_battery`), so the header shows the
+  real charge again.
+- **Obstacle tab no longer shows broken-image placeholders** when there are no
+  snapshots. It now filters unavailable image entities and explains that the
+  Roomba only retains obstacle photos when Obstacle Image Review is used in the
+  app.
+
+### Changed
+
+- **Diagnostics captures omap spatial shape.** When obstacle data is fetched,
+  the dump now includes `omap_keys` (spatial top-level keys and object
+  container names), so the obstacle field names can be confirmed from a dump
+  once a robot actually has retained snapshots.
+
+### Still open
+
+- Obstacle snapshots remain empty on the test robot (`obstacle_count: 0`) —
+  this account has no retained obstacle images. The extractor targets the
+  correct omap API; the exact object/URL field names await a robot that has
+  reviewed obstacles. The new `omap_keys` diagnostics will reveal them.
+
 ## [0.6.3] — 2026-07-24
 
 Third live dump resolved both items left open in 0.6.2.
@@ -338,7 +392,9 @@ Initial release.
 - `PROTOCOL.md` documenting the discovery, MQTT, map, schedule and live-view
   protocols.
 
-[Unreleased]: https://github.com/sam3gp8/ha-irobot-advanced/compare/v0.6.3...HEAD
+[Unreleased]: https://github.com/sam3gp8/ha-irobot-advanced/compare/v0.6.5...HEAD
+[0.6.5]: https://github.com/sam3gp8/ha-irobot-advanced/compare/v0.6.4...v0.6.5
+[0.6.4]: https://github.com/sam3gp8/ha-irobot-advanced/compare/v0.6.3...v0.6.4
 [0.6.3]: https://github.com/sam3gp8/ha-irobot-advanced/compare/v0.6.2...v0.6.3
 [0.6.2]: https://github.com/sam3gp8/ha-irobot-advanced/compare/v0.6.1...v0.6.2
 [0.6.1]: https://github.com/sam3gp8/ha-irobot-advanced/compare/v0.6.0...v0.6.1

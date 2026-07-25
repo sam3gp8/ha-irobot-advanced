@@ -42,6 +42,8 @@ class IRobotCloudClient:
     def __init__(self, session: aiohttp.ClientSession, auth: IRobotAuth) -> None:
         self._session = session
         self._auth = auth
+        self.last_omap_spatial: dict[str, Any] | None = None
+        self.last_omap_debug: dict[str, Any] | None = None
 
     @property
     def auth(self) -> IRobotAuth:
@@ -185,8 +187,16 @@ class IRobotCloudClient:
         snapshots: list[dict[str, Any]] = []
         try:
             omaps = await self.async_get_omaps(blid)
-        except (aiohttp.ClientError, CloudAuthError):
+        except (aiohttp.ClientError, CloudAuthError) as err:
+            _LOGGER.debug("omap list fetch failed: %s", err)
+            self.last_omap_debug = {"error": str(err)}
             return snapshots
+
+        self.last_omap_debug = {
+            "omap_count": len(omaps),
+            "omap_keys": sorted({k for o in omaps for k in o}) if omaps else [],
+        }
+        _LOGGER.debug("omaps returned %d entries", len(omaps))
 
         for omap in omaps:
             omap_id = omap.get("omap_id") or omap.get("id")
@@ -201,6 +211,7 @@ class IRobotCloudClient:
                 spatial = await self.async_get_omap_spatial(blid, omap_id, version)
             except (aiohttp.ClientError, CloudAuthError):
                 continue
+            self.last_omap_spatial = spatial  # for diagnostics field capture
             snapshots.extend(self._extract_obstacles(spatial, omap_id))
 
         snapshots.sort(key=lambda s: s.get("timestamp") or 0, reverse=True)

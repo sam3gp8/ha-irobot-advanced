@@ -82,7 +82,33 @@ async def async_get_config_entry_diagnostics(
                 coordinator.pmap_details.values(), "zones"
             ),
             "mission_timeline_keys": _first_timeline_keys(coordinator.missions),
+            "omap_keys": _omap_shape(coordinator),
         },
+    }
+
+
+def _omap_shape(coordinator: IRobotCoordinator) -> dict[str, Any]:
+    """Capture omap + spatial-data shape so obstacle fields can be confirmed."""
+    cloud = coordinator.cloud
+    if cloud is None:
+        return {"available": False}
+    # Best-effort synchronous snapshot from whatever the coordinator cached.
+    debug = getattr(cloud, "last_omap_debug", None)
+    sample = getattr(coordinator, "_last_omap_spatial", None)
+    if not isinstance(sample, dict):
+        return {
+            "available": False,
+            "note": "no omap spatial fetched",
+            "omap_list": debug,
+        }
+    return {
+        "omap_list": debug,
+        "available": True,
+        "spatial_top_level_keys": sorted(sample.keys()),
+        "object_container_keys": sorted(
+            k for k in sample
+            if isinstance(sample.get(k), list)
+        ),
     }
 
 

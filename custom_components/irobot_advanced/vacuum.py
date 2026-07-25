@@ -23,6 +23,23 @@ from .const import (
 from .coordinator import IRobotCoordinator
 from .entity import IRobotEntity
 
+
+def _error_text(code: int, phase: str | None) -> str:
+    """Human text for an error code.
+
+    The known-code table doesn't cover every firmware revision, so unmapped
+    codes fall back to the phase (which the robot always reports) plus the raw
+    code, rather than a bare "Unknown".
+    """
+    if not code:
+        return "None"
+    if (known := ERROR_MAP.get(code)) is not None:
+        return known
+    if phase == "stuck":
+        return f"Stuck (code {code})"
+    return f"Error {code}"
+
+
 ACTIVITY_MAP: dict[str, VacuumActivity] = {
     "charging": VacuumActivity.DOCKED,
     "docked": VacuumActivity.DOCKED,
@@ -100,7 +117,8 @@ class IRobotVacuum(IRobotEntity, StateVacuumEntity):
             "phase": mission.get("phase"),
             "cycle": CYCLE_MAP.get(mission.get("cycle"), mission.get("cycle")),
             "error_code": error_code,
-            "error": ERROR_MAP.get(error_code, f"Unknown ({error_code})"),
+            "error": _error_text(error_code, mission.get("phase")),
+            "not_ready_code": mission.get("notReady") or None,
             "mission_id": mission.get("mssnM"),
             "square_feet": mission.get("sqft"),
             "elapsed_minutes": mission.get("mssnM"),

@@ -94,6 +94,7 @@ class IRobotCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self.missions: list[dict[str, Any]] = []
         self.obstacles: list[dict[str, Any]] = []
         self.cloud_error: str | None = None
+        self._last_omap_spatial: dict[str, Any] | None = None
 
     # ------------------------------------------------------------------ setup
 
@@ -168,6 +169,10 @@ class IRobotCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
         self.missions = await self.cloud.async_get_mission_history(self.blid)
         self.obstacles = await self.cloud.async_get_obstacle_snapshots(self.blid)
+        # Keep the last omap spatial sample for diagnostics field-name capture.
+        self._last_omap_spatial = getattr(
+            self.cloud, "last_omap_spatial", None
+        )
 
     async def async_refresh_maps(self) -> None:
         if self.cloud is None:

@@ -175,7 +175,7 @@ class IRobotAdvancedCard extends HTMLElement {
     const base = [
       this._tab,
       vac.state,
-      a.battery_level,
+      this._batteryPct(),
       a.phase,
       a.error,
       a.fan_speed,
@@ -305,9 +305,19 @@ class IRobotAdvancedCard extends HTMLElement {
     else body.innerHTML = banner + this._history();
   }
 
+  _batteryPct() {
+    // Vacuum battery_level was removed (HA deprecation); read the battery sensor.
+    const sid = this._find(this._vacId, "sensor", "_battery");
+    const s = sid && this._hass.states[sid];
+    if (s && s.state !== "unknown" && s.state !== "unavailable") {
+      return Math.round(Number(s.state));
+    }
+    return this._vac.attributes.battery_level ?? null;
+  }
+
   _renderHead() {
     const attrs = this._vac.attributes;
-    const battery = attrs.battery_level;
+    const battery = this._batteryPct();
     const name = attrs.friendly_name || "Roomba";
     this._el.head.innerHTML = `
       <div class="avatar"><img
@@ -419,10 +429,17 @@ class IRobotAdvancedCard extends HTMLElement {
     const images = this._siblings(this._vacId)
       .filter((id) => id.startsWith("image.") && id.includes("obstacle"))
       .map((id) => this._hass.states[id])
-      .filter((state) => state && state.attributes.entity_picture);
+      .filter(
+        (state) =>
+          state &&
+          state.state !== "unavailable" &&
+          state.attributes.entity_picture
+      );
 
     if (!images.length) {
-      return `<div class="empty">No obstacle snapshots. These arrive with cloud access after a run.</div>`;
+      return `<div class="empty">No obstacle snapshots to show.<br>
+        The Roomba only keeps these when Obstacle Image Review is used in the
+        iRobot app, and they expire after a while.</div>`;
     }
 
     return `<div class="obs">${images
