@@ -177,16 +177,23 @@ class IRobotCloudClient:
     # ------------------------------------------------------------- obstacles
 
     async def async_get_obstacle_snapshots(self, blid: str) -> list[dict[str, Any]]:
-        """Collect obstacle captures from the omap spatial data.
+        """Collect obstacle captures from the omap (observed map) API.
 
-        Obstacle images are part of the Mapping Metadata (omap) API, not the
-        mission summary or timeline -- the mission records carry no image URLs
-        (confirmed against a live j-series robot). Each omap version's spatial
-        data holds the detected objects with their pre-signed image URLs.
+        Established by decompiling the app's native core (see PROTOCOL.md §7):
+        obstacle images are served through ``SecureAssetDataUIService``, which
+        is keyed by household id, **mission id** and image id. The omap list
+        endpoint takes ``robotId`` (confirmed: the only omaps query param in
+        the binary) and, per the same parameter set, ``missionId`` -- omaps are
+        recorded per mission, which is why a bare ``robotId`` query returns
+        nothing on a robot with no *current* observed map.
+
+        So this queries omaps per recent mission rather than globally.
         """
         snapshots: list[dict[str, Any]] = []
         try:
             omaps = await self.async_get_omaps(blid)
+            if not omaps:
+                omaps = await self._async_omaps_per_mission(blid)
         except (aiohttp.ClientError, CloudAuthError) as err:
             _LOGGER.debug("omap list fetch failed: %s", err)
             self.last_omap_debug = {"error": str(err)}
@@ -216,6 +223,33 @@ class IRobotCloudClient:
 
         snapshots.sort(key=lambda s: s.get("timestamp") or 0, reverse=True)
         return snapshots
+
+    async def _async_omaps_per_mission(self, blid: str) -> list[dict[str, Any]]:
+        """Query omaps scoped to recent missions.
+
+        ``missionId`` appears alongside ``robotId`` in the binary's query-param
+        set, and the SecureAssetData service is keyed by mission -- so observed
+        maps (and their obstacle captures) are recorded per run.
+        """
+        found: list[dict[str, Any]] = []
+        try:
+            missions = await self.async_get_mission_history(blid)
+        except (aiohttp.ClientError, CloudAuthError):
+            return found
+
+        for mission in missions[:10]:
+            mission_id = mission.get("missionId") or mission.get("id")
+            if not mission_id:
+                continue
+            try:
+                data = await self._get(PATH_OMAPS, robotId=blid, missionId=mission_id)
+            except (aiohttp.ClientError, CloudAuthError):
+                continue
+            items = data if isinstance(data, list) else (data or {}).get("omaps", [])
+            if items:
+                _LOGGER.debug("omaps for mission %s: %d", mission_id, len(items))
+                found.extend(items)
+        return found
 
     @staticmethod
     def _extract_obstacles(spatial: dict[str, Any], omap_id: str) -> list[dict[str, Any]]:

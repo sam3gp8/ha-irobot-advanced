@@ -228,16 +228,59 @@ arrays, not a binary blob. `/spatial/rendered` is the shortcut — the cloud wil
 hand you a finished raster, which is far cheaper than reimplementing the
 renderer.
 
-## 7. Obstacle snapshots
+## 7. Obstacle snapshots — the SecureAssetData service
 
-Java-visible types: `com.irobot.core.ObstacleMetadata`,
-`ObstacleImageApproval`, `ObstacleReviewStatus`, `HazardsInfo`, plus
-`HazardsUseCase` / `HazardsDecoder` in native. Shadow field `ImageUpload`
-(`AssetImageUploadEvent`), and the deletion endpoint
-`POST /v1/user/imageupload/removalRequest`. Images are fetched as part of the
-mission history payload (`/v1/{blid}/missionhistory`) and via the omap
-spatialdata, as pre-signed S3 URLs. Three sample obstacle images ship in the APK
-at `assets/sapphire_obstacle_*.jpg`.
+Decompiling the native core settles how the app actually does this. It is **not**
+a REST list endpoint — the complete REST inventory (§6 and below) contains no
+obstacle-image path at all, only a deletion route
+(`/v1/user/imageupload/removalRequest`).
+
+Instead the app drives an internal service, `SecureAssetDataUIService`, over its
+UIService bus (`registerUISubscriber` / `sendCommand`). The data object exposes:
+
+```
+SecureAssetDataUIServiceData
+  setHouseholdId(...)         <- scope
+  setMissionId(...)           <- obstacle captures are per-mission
+  setMissionNumber(...)
+  setImageId(...)             <- individual capture
+  getBundleId()               <- see "encryption" below
+  getAllObstacleMetadata()    -> List<ObstacleMetadata>
+  getObstacleImageData()      -> the image bytes
+  getObstacleReviewStatus()
+  getObstacleReviewProgress() / setObstacleReviewProgress(...)
+  setObstacleApprovals(...)   -> List<ObstacleImageApproval>
+  getLastError()
+```
+
+Two conclusions follow, and both are load-bearing:
+
+**1. Captures are keyed by mission, not by robot.** `setMissionId` is a required
+input, and `missionId` appears in the binary's query-parameter set alongside
+`robotId` — the only two params used for the omap endpoints. A bare
+`/v1/omaps?robotId=<blid>` returns nothing on a robot with no *current* observed
+map, which is exactly what a live j9 returned (`omap_count: 0`). Querying omaps
+per recent mission is therefore the correct shape.
+
+**2. The images are encrypted, and `getBundleId` is why.** The service is named
+*Secure*AssetData, and `/v1/app/bundles/%s/latest` sits in the REST inventory
+next to it. Independent forensic work on these robots also describes the
+obstacle captures as encrypted. So retrieving the bytes is likely not enough —
+the bundle supplies key material. This is the part that remains unproven here.
+
+Hazards are a **separate** concern and should not be confused with obstacle
+photos:
+
+```
+HazardsUseCase::fetchHazardInfos      -> List<HazardsInfo>
+HazardsInfo(string, string, Polygon)  <- geometry, not imagery
+MapsUIServiceData::getHazardsPolygons / getSelectedHazard /
+  setHazardsToConvertToKeepOutZones / setHazardsToConvertToPolicyZones
+```
+
+That is map geometry — hazard polygons the user can promote into keep-out or
+policy zones. It travels in the UMF map layers (`layerType: hazards`), which is
+why `observed_zones` and `keepoutzones` appear as UMF top-level keys.
 
 ## 8. Live camera view
 

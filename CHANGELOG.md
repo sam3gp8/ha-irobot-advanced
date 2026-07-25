@@ -20,6 +20,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the stream actually plays. Until this lands the project stays on `0.x`.
 - Replace heuristic UMF layer parsing once enough map samples are available.
 
+## [0.6.7] — 2026-07-25
+
+Decompiled the app's native core instead of guessing at endpoints. This
+identified how obstacle images actually work.
+
+### Added
+
+- **Per-mission omap queries.** The binary's only omap query parameters are
+  `robotId` and `missionId`, and the obstacle service is keyed by mission — so
+  when a bare `robotId` query returns nothing (as it does on a live j9), the
+  integration now queries omaps scoped to each recent mission.
+
+### Documentation
+
+- **PROTOCOL.md §7 rewritten from the binary.** Obstacle images are served
+  through `SecureAssetDataUIService`, keyed by household id, mission id and
+  image id — not by any REST list endpoint. The complete REST inventory
+  contains no obstacle-image path, only the deletion route, which is why three
+  earlier attempts to find one failed.
+- Documented that hazards (`HazardsUseCase`, polygon geometry in UMF layers)
+  are a **different** feature from obstacle photos — they are map regions
+  promotable to keep-out zones, not imagery.
+- Recorded the likely encryption dependency: the service is named *Secure*
+  AssetData and exposes `getBundleId` next to `/v1/app/bundles/%s/latest`, so
+  decrypting captures probably requires bundle key material. Unproven, and
+  flagged as such.
+
 ## [0.6.6] — 2026-07-25
 
 ### Fixed
@@ -422,7 +449,8 @@ Initial release.
 - `PROTOCOL.md` documenting the discovery, MQTT, map, schedule and live-view
   protocols.
 
-[Unreleased]: https://github.com/sam3gp8/ha-irobot-advanced/compare/v0.6.6...HEAD
+[Unreleased]: https://github.com/sam3gp8/ha-irobot-advanced/compare/v0.6.7...HEAD
+[0.6.7]: https://github.com/sam3gp8/ha-irobot-advanced/compare/v0.6.6...v0.6.7
 [0.6.6]: https://github.com/sam3gp8/ha-irobot-advanced/compare/v0.6.5...v0.6.6
 [0.6.5]: https://github.com/sam3gp8/ha-irobot-advanced/compare/v0.6.4...v0.6.5
 [0.6.4]: https://github.com/sam3gp8/ha-irobot-advanced/compare/v0.6.3...v0.6.4
