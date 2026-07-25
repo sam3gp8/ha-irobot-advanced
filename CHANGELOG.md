@@ -20,6 +20,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the stream actually plays. Until this lands the project stays on `0.x`.
 - Replace heuristic UMF layer parsing once enough map samples are available.
 
+## [0.6.3] — 2026-07-24
+
+Third live dump resolved both items left open in 0.6.2.
+
+### Fixed
+
+- **Obstacle snapshots now read from the right source.** The mission history and
+  timeline carry no image URLs (confirmed: `mission_timeline_keys` has no image
+  field). Obstacle captures are part of the omap (Mapping Metadata) API, as
+  documented in the PyRoomba forensic research. The extractor now pulls them
+  from omap spatial data instead of mission history.
+
+### Confirmed working
+
+- **Region names.** `region_object_keys` shows regions carry `id`, `name` and
+  `region_type`; named rooms surface correctly. (13 regions detected on the test
+  robot.)
+
+### Note
+
+- Obstacle extraction targets the correct API now, but the exact object/URL
+  field names within omap spatial data are not yet confirmed against a real
+  payload — `_extract_obstacles` probes the likely spellings. If snapshots stay
+  empty on a robot that has reviewed obstacles, a diagnostics dump will pin the
+  field names down.
+
 ## [0.6.2] — 2026-07-24
 
 Verified against a second live dump on 0.6.1. The 0.6.1 fixes held:
@@ -312,7 +338,8 @@ Initial release.
 - `PROTOCOL.md` documenting the discovery, MQTT, map, schedule and live-view
   protocols.
 
-[Unreleased]: https://github.com/sam3gp8/ha-irobot-advanced/compare/v0.6.2...HEAD
+[Unreleased]: https://github.com/sam3gp8/ha-irobot-advanced/compare/v0.6.3...HEAD
+[0.6.3]: https://github.com/sam3gp8/ha-irobot-advanced/compare/v0.6.2...v0.6.3
 [0.6.2]: https://github.com/sam3gp8/ha-irobot-advanced/compare/v0.6.1...v0.6.2
 [0.6.1]: https://github.com/sam3gp8/ha-irobot-advanced/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/sam3gp8/ha-irobot-advanced/compare/v0.5.0...v0.6.0

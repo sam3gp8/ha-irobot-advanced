@@ -114,7 +114,18 @@ My inferred shape was per-day objects with `start_time:{h,m}` and
 **Fix:** rewrite `build_v2`/`parse_v2` to the real schema. This is the single
 most valuable outcome of the dump.
 
-## BUG 7 — obstacle snapshots empty (obstacle_count 0)
+## BUG 7 — obstacle snapshots empty — SOURCE IDENTIFIED (0.6.3)
+
+Third dump confirmed `mission_timeline_keys: [cmd, event, finEvents,
+mission_id, nMssn, ver]` — **no image URLs anywhere in mission history or
+timeline.** The obstacle captures are part of the **omap (Mapping Metadata)
+API**, not mission data — confirmed by the PyRoomba forensic research, which
+found the "encrypted image captures" in the mapping metadata. 0.6.3 redirects
+the extractor to omap spatial data. Still needs a real omap payload to confirm
+the exact object/URL keys — the `_extract_obstacles` probes cover the likely
+spellings. Original analysis below.
+
+
 
 `imgUpload: 1` and rich `missionTelemetry` exist, but `obstacle_count: 0` and
 `mission_keys` shows the obstacle data is not under the keys the extractor
@@ -125,6 +136,13 @@ summary. Needs the mission **detail** shape, not present in this dump.
 
 **Verdict:** leave the 5 obstacle image slots but stop showing them when empty;
 revisit once a mission-detail payload is available.
+
+## Region names — RESOLVED (confirmed 0.6.2)
+
+Third dump: `region_object_keys: [id, name, policies, region_type,
+time_estimates]`. Regions **do** carry a `name`, and the coordinator reads
+`region.get("name")` — so named rooms surface correctly. The select's latent
+filter that hid nameless regions was fixed in 0.6.2 as a safety net.
 
 ## BUG 8 — cosmetics from the dump
 

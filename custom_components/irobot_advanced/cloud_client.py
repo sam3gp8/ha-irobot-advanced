@@ -175,38 +175,82 @@ class IRobotCloudClient:
     # ------------------------------------------------------------- obstacles
 
     async def async_get_obstacle_snapshots(self, blid: str) -> list[dict[str, Any]]:
-        """Flatten obstacle records out of the mission history."""
-        history = await self.async_get_mission_history(blid)
+        """Collect obstacle captures from the omap spatial data.
+
+        Obstacle images are part of the Mapping Metadata (omap) API, not the
+        mission summary or timeline -- the mission records carry no image URLs
+        (confirmed against a live j-series robot). Each omap version's spatial
+        data holds the detected objects with their pre-signed image URLs.
+        """
         snapshots: list[dict[str, Any]] = []
-        for mission in history:
-            for key in ("obstacles", "hazards", "imageUploads", "detections"):
-                for item in mission.get(key) or []:
-                    if not isinstance(item, dict):
-                        continue
-                    url = (
-                        item.get("imageUrl")
-                        or item.get("url")
-                        or item.get("presignedUrl")
-                    )
-                    if not url:
-                        continue
-                    snapshots.append(
-                        {
-                            "mission_id": mission.get("id") or mission.get("missionId"),
-                            "timestamp": item.get("timestamp")
-                            or mission.get("startTime"),
-                            "obstacle_type": item.get("type") or item.get("objectType"),
-                            "review_status": item.get("reviewStatus"),
-                            "position": {
-                                "x": item.get("x"),
-                                "y": item.get("y"),
-                                "theta": item.get("theta"),
-                            },
-                            "image_url": url,
-                        }
-                    )
+        try:
+            omaps = await self.async_get_omaps(blid)
+        except (aiohttp.ClientError, CloudAuthError):
+            return snapshots
+
+        for omap in omaps:
+            omap_id = omap.get("omap_id") or omap.get("id")
+            version = (
+                omap.get("active_omapv_id")
+                or omap.get("omapv_id")
+                or omap.get("version")
+            )
+            if not omap_id or not version:
+                continue
+            try:
+                spatial = await self.async_get_omap_spatial(blid, omap_id, version)
+            except (aiohttp.ClientError, CloudAuthError):
+                continue
+            snapshots.extend(self._extract_obstacles(spatial, omap_id))
+
         snapshots.sort(key=lambda s: s.get("timestamp") or 0, reverse=True)
         return snapshots
+
+    @staticmethod
+    def _extract_obstacles(spatial: dict[str, Any], omap_id: str) -> list[dict[str, Any]]:
+        """Pull obstacle objects with image URLs out of omap spatial data."""
+        out: list[dict[str, Any]] = []
+        # Objects live under several plausible containers depending on firmware.
+        containers = (
+            spatial.get("observed_objects")
+            or spatial.get("objects")
+            or spatial.get("obstacles")
+            or spatial.get("detections")
+            or (spatial.get("spatialData") or {}).get("objects")
+            or []
+        )
+        for item in containers:
+            if not isinstance(item, dict):
+                continue
+            url = (
+                item.get("image_url")
+                or item.get("imageUrl")
+                or item.get("url")
+                or item.get("presignedUrl")
+            )
+            if not url:
+                continue
+            pos = item.get("position") or item
+            out.append(
+                {
+                    "omap_id": omap_id,
+                    "timestamp": item.get("timestamp") or item.get("detection_time"),
+                    "obstacle_type": (
+                        item.get("classification")
+                        or item.get("object_type")
+                        or item.get("type")
+                    ),
+                    "review_status": item.get("review_status")
+                    or item.get("reviewStatus"),
+                    "position": {
+                        "x": pos.get("x"),
+                        "y": pos.get("y"),
+                        "theta": pos.get("theta"),
+                    },
+                    "image_url": url,
+                }
+            )
+        return out
 
     async def async_fetch_image(self, url: str) -> bytes:
         return await self._get_bytes(url)
