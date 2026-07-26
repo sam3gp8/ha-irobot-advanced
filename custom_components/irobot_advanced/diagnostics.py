@@ -83,8 +83,21 @@ async def async_get_config_entry_diagnostics(
             ),
             "mission_timeline_keys": _first_timeline_keys(coordinator.missions),
             "omap_keys": _omap_shape(coordinator),
+            # Service names the robot advertises. Keys only -- the values can
+            # carry deployment/account identifiers and stay redacted.
+            "svc_endpoint_names": _svc_endpoint_names(coordinator),
         },
     }
+
+
+def _svc_endpoint_names(coordinator: IRobotCoordinator) -> Any:
+    """Which services the robot advertises, without exposing their URLs."""
+    svc = coordinator.reported.get("svcEndpoints")
+    if isinstance(svc, dict):
+        return sorted(svc.keys())
+    if isinstance(svc, str):
+        return {"type": "string", "length": len(svc)}
+    return None
 
 
 def _omap_shape(coordinator: IRobotCoordinator) -> dict[str, Any]:
