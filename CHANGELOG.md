@@ -20,6 +20,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the stream actually plays. Until this lands the project stays on `0.x`.
 - Replace heuristic UMF layer parsing once enough map samples are available.
 
+## [0.6.9] — 2026-09-29
+
+### Fixed
+
+- **Robot unavailable after a reinstall / reload.** The frontend card is served
+  from a static HTTP path and an extra-JS URL, both of which live for the whole
+  Home Assistant process — aiohttp has no way to unregister a route. Removing
+  and re-adding the integration (or reloading it) without restarting HA cleared
+  the "registered" flag and tried to register the static path a second time,
+  which aiohttp rejects with `RuntimeError: Added route will never be executed,
+  method GET is already registered`. That exception aborted `async_setup_entry`,
+  so the robot entity never came back. The static path and JS URL are now
+  registered at most once per process (a flag that is never cleared), while the
+  sidebar panel — which *can* be removed and re-added — keeps its previous
+  lifecycle. Frontend registration is additionally best-effort now: any failure
+  is logged and swallowed so a card problem can never take the robot offline.
+
 ## [0.6.8] — 2026-07-25
 
 ### Changed

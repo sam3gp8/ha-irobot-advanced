@@ -24,28 +24,51 @@ CARD_FILENAME = "irobot-advanced-card.js"
 CARD_URL = f"/{DOMAIN}/{CARD_FILENAME}"
 PANEL_URL_PATH = "irobot-advanced"
 
-_REGISTERED = f"{DOMAIN}_frontend_registered"
+# The static path and extra-JS URL are bound to the aiohttp app / frontend for
+# the lifetime of the running Home Assistant process -- there is no public API
+# to undo them. This flag is set once and never cleared, so a reload or a
+# remove-and-re-add of the integration does not try to register them a second
+# time (which raises "method GET is already registered"). The panel, by
+# contrast, can be removed and re-added, so it is not gated by this flag.
+_STATIC_REGISTERED = f"{DOMAIN}_frontend_static_registered"
 
 
 async def async_register_frontend(hass: HomeAssistant) -> None:
-    """Register the card and panel once, no matter how many robots exist."""
-    if hass.data.get(_REGISTERED):
-        return
+    """Register the card and panel once, no matter how many robots exist.
 
+    Frontend registration is best-effort: the card and sidebar panel are a
+    convenience, so any failure here is logged and swallowed rather than
+    allowed to abort the config entry setup and leave the robot unavailable.
+    """
+    try:
+        await _async_register_frontend(hass)
+    except Exception:  # noqa: BLE001 - never let the card break the robot
+        _LOGGER.exception(
+            "Failed to register the iRobot dashboard card/panel; the robot "
+            "entities are unaffected"
+        )
+
+
+async def _async_register_frontend(hass: HomeAssistant) -> None:
     source = Path(__file__).parent / "www" / CARD_FILENAME
     if not source.is_file():
         _LOGGER.warning("Card asset missing at %s; skipping frontend setup", source)
         return
 
-    await hass.http.async_register_static_paths(
-        [StaticPathConfig(CARD_URL, str(source), cache_headers=False)]
-    )
+    # Static path + extra-JS URL: register at most once per process. aiohttp
+    # keeps the GET route even after the integration is unloaded, so a second
+    # attempt after a reload/reinstall would raise a RuntimeError.
+    if not hass.data.get(_STATIC_REGISTERED):
+        await hass.http.async_register_static_paths(
+            [StaticPathConfig(CARD_URL, str(source), cache_headers=False)]
+        )
+        # Makes <irobot-advanced-card> available to dashboards and the picker.
+        frontend.add_extra_js_url(hass, CARD_URL)
+        hass.data[_STATIC_REGISTERED] = True
 
-    # Makes <irobot-advanced-card> available to dashboards and the card picker.
-    frontend.add_extra_js_url(hass, CARD_URL)
-
+    # The panel can be removed (see async_remove_frontend) and re-added, so
+    # (re)register it on every setup. ValueError == already registered.
     with contextlib.suppress(ValueError):
-        # ValueError == already registered by a previous setup; harmless.
         await panel_custom.async_register_panel(
             hass,
             frontend_url_path=PANEL_URL_PATH,
@@ -57,12 +80,16 @@ async def async_register_frontend(hass: HomeAssistant) -> None:
             embed_iframe=False,
         )
 
-    hass.data[_REGISTERED] = True
     _LOGGER.debug("Frontend card and panel registered at %s", CARD_URL)
 
 
 def async_remove_frontend(hass: HomeAssistant) -> None:
-    """Drop the sidebar panel when the last entry is removed."""
-    if not hass.data.pop(_REGISTERED, None):
-        return
-    frontend.async_remove_panel(hass, PANEL_URL_PATH)
+    """Drop the sidebar panel when the last entry is removed.
+
+    Only the panel is removed here. The static path and extra-JS URL cannot be
+    unregistered from the running process, so their guard flag is deliberately
+    left in place to keep a later re-add from registering them twice.
+    """
+    with contextlib.suppress(ValueError):
+        # ValueError == panel not currently registered; harmless.
+        frontend.async_remove_panel(hass, PANEL_URL_PATH)
