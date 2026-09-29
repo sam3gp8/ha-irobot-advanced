@@ -222,9 +222,18 @@ class RoombaLocalClient:
         self._client.loop_start()
 
     async def async_disconnect(self) -> None:
-        self._client.loop_stop()
-        self._client.disconnect()
         self.connected = False
+        # Order matters: paho transmits the MQTT DISCONNECT *from* the network
+        # loop, so stopping the loop first (the previous behaviour) dropped the
+        # TCP link without a clean disconnect. The robot then kept this BLID's
+        # single local session open until keepalive expired (~90s), and any
+        # reload/reconnect inside that window was refused with "rc=2 identifier
+        # rejected" -- the connection appears to already be in use by itself.
+        # Disconnect first (while the loop can still send the packet), then stop
+        # the loop, so the robot frees the slot immediately.
+        with contextlib.suppress(Exception):
+            self._client.disconnect()
+        self._client.loop_stop()
 
     # ---------------------------------------------------------------- callbacks
 
