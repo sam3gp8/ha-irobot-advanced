@@ -33,6 +33,7 @@ from .const import (
 )
 from .coordinator import IRobotCoordinator
 from .frontend import async_register_frontend, async_remove_frontend
+from .log_buffer import async_setup_log_capture, async_teardown_log_capture
 from .schedule import (
     ScheduleSlot,
     build_legacy,
@@ -123,6 +124,10 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up one robot."""
+    # Start capturing logs before anything else so setup-time errors (e.g. a
+    # robot that won't connect) are included in the diagnostics download.
+    async_setup_log_capture(hass)
+
     coordinator = IRobotCoordinator(hass, entry)
 
     try:
@@ -148,6 +153,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         await coordinator.async_stop()
         if not hass.data[DOMAIN]:
             async_remove_frontend(hass)
+            async_teardown_log_capture(hass)
     return unloaded
 
 
