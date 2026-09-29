@@ -41,6 +41,37 @@ _LOGGER = logging.getLogger(__name__)
 DISCOVERY_TIMEOUT = 5.0
 PASSWORD_TIMEOUT = 5.0
 
+# MQTT CONNACK return codes (MQTT 3.1.1) mapped to their short meaning.
+_CONNACK_REASONS = {
+    1: "unacceptable protocol version",
+    2: "identifier rejected",
+    3: "server unavailable",
+    4: "bad username or password",
+    5: "not authorized",
+}
+
+# iRobot robots accept only ONE local MQTT client at a time, keyed on the BLID
+# (which is both the client id and the username). The common refusals therefore
+# map to concrete, user-fixable causes -- surfaced here so the diagnostics log
+# explains itself instead of leaving a bare "rc=2".
+_CONNACK_HINTS = {
+    2: (
+        " -- the robot allows only one local connection at a time and another "
+        "client is probably already holding it (the iRobot smartphone app, or "
+        "another Roomba integration such as roomba_rest980 / rest980 / dorita980 "
+        "pointing at the same robot). Close the app and disable any other "
+        "integration for this robot, then reload"
+    ),
+    4: (
+        " -- the BLID or robot password is wrong. Re-run the robot's password "
+        "exchange (hold HOME/CLEAN until it chimes) and update the integration"
+    ),
+    5: (
+        " -- the robot rejected these credentials. Re-run the password exchange "
+        "and confirm the BLID belongs to this robot"
+    ),
+}
+
 
 def _legacy_ssl_context() -> ssl.SSLContext:
     """Roomba firmware speaks old TLS with weak ciphers.
@@ -199,7 +230,11 @@ class RoombaLocalClient:
 
     def _handle_connect(self, client, userdata, flags, rc) -> None:
         if rc != 0:
-            _LOGGER.error("%s: local MQTT refused (rc=%s)", self.blid, rc)
+            reason = _CONNACK_REASONS.get(rc, "refused")
+            hint = _CONNACK_HINTS.get(rc, "")
+            _LOGGER.error(
+                "%s: local MQTT refused (rc=%s: %s)%s", self.blid, rc, reason, hint
+            )
             return
         self.connected = True
         client.subscribe("#", qos=0)
@@ -208,7 +243,13 @@ class RoombaLocalClient:
     def _handle_disconnect(self, client, userdata, rc) -> None:
         self.connected = False
         if rc != 0:
-            _LOGGER.warning("%s: unexpected local disconnect (rc=%s)", self.blid, rc)
+            _LOGGER.warning(
+                "%s: unexpected local disconnect (rc=%s) -- if this repeats, "
+                "another client is likely competing for the robot's single local "
+                "connection (the iRobot app or another Roomba integration)",
+                self.blid,
+                rc,
+            )
 
     def _handle_message(self, client, userdata, msg) -> None:
         try:
