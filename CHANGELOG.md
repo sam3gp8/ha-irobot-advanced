@@ -20,6 +20,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the stream actually plays. Until this lands the project stays on `0.x`.
 - Replace heuristic UMF layer parsing once enough map samples are available.
 
+## [0.6.12] — 2026-09-29
+
+### Fixed
+
+- **Robot stuck on `rc=2 identifier rejected` after a reload/reinstall.** The
+  local client tore the MQTT session down in the wrong order — it stopped paho's
+  network loop *before* calling `disconnect()`, and paho transmits the MQTT
+  `DISCONNECT` from that loop. The packet was therefore never sent, so the robot
+  saw an ungraceful TCP drop and kept the BLID's single local session open until
+  keepalive expired (~90 seconds). Because a robot accepts only one local
+  connection at a time, any reload or reconnect inside that window — which a
+  reload always is — was refused with `rc=2` (identifier rejected): the
+  integration was effectively colliding with its own orphaned session, and once
+  seeded (e.g. by the pre-0.6.9 setup crash loop) it could persist across
+  restarts. The teardown now disconnects first, then stops the loop, so the
+  robot frees the slot immediately and reconnects cleanly. If a robot is
+  currently stuck this way, power-cycle it once (or wait ~90 s) to clear the
+  stale session it is still holding; after that this fix keeps it from
+  recurring.
+
 ## [0.6.11] — 2026-09-29
 
 ### Changed
