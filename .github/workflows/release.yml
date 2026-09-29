@@ -1,31 +1,82 @@
 name: Release
 
+# Publishes a GitHub Release whenever the integration's manifest version lands on
+# main without a matching release yet. It is idempotent: every push to main
+# checks whether a release for the current manifest version already exists and
+# only creates one when it doesn't, so re-runs, unrelated pushes, and releases
+# cut by hand never produce a duplicate. Trigger it manually (workflow_dispatch)
+# to release the current version on demand -- e.g. right after adding this file.
+#
+# HACS installs this integration from a release asset (hacs.json sets
+# "zip_release": true with filename irobot_advanced.zip), so the release must
+# carry that zip. The whole flow lives in this one job: a release created with
+# GITHUB_TOKEN does not emit a `release: published` event (GitHub suppresses it
+# to avoid workflow recursion), so a separate asset-upload workflow keyed on that
+# event would never fire -- the zip is built and attached here instead.
 on:
-  release:
-    types: [published]
+  push:
+    branches: [main]
+  workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: write        # create tags + releases
+
+concurrency:
+  group: release
+  cancel-in-progress: false
 
 jobs:
   release:
+    name: Publish GitHub Release on version bump
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      - name: Set version from tag
+      - name: Read manifest version
+        id: ver
         run: |
-          VERSION="${GITHUB_REF_NAME#v}"
-          jq --arg v "$VERSION" '.version = $v' \
-            custom_components/irobot_advanced/manifest.json > manifest.tmp
-          mv manifest.tmp custom_components/irobot_advanced/manifest.json
+          v=$(python3 -c "import json;print(json.load(open('custom_components/irobot_advanced/manifest.json'))['version'])")
+          if [ -z "$v" ]; then echo "manifest has no version" >&2; exit 1; fi
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+          echo "Manifest version: $v"
+
+      - name: Check whether this release already exists
+        id: exists
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if gh release view "${{ steps.ver.outputs.version }}" \
+               --repo "${{ github.repository }}" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "Release ${{ steps.ver.outputs.version }} already exists -- nothing to do."
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Extract release notes from CHANGELOG
+        if: steps.exists.outputs.exists == 'false'
+        run: |
+          python3 scripts/extract_changelog.py "${{ steps.ver.outputs.version }}" > release-notes.md
+          echo "----- release notes -----"
+          cat release-notes.md
 
       - name: Build release archive
+        if: steps.exists.outputs.exists == 'false'
         run: |
           cd custom_components/irobot_advanced
-          zip -r ../../irobot_advanced.zip . -x "*/__pycache__/*"
+          zip -r "$GITHUB_WORKSPACE/irobot_advanced.zip" . -x "*/__pycache__/*"
 
-      - name: Attach archive to release
-        uses: softprops/action-gh-release@v2
-        with:
-          files: irobot_advanced.zip
+      - name: Create the release
+        if: steps.exists.outputs.exists == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${{ steps.ver.outputs.version }}" \
+            --repo "${{ github.repository }}" \
+            --title "HA IRobot Advance ${{ steps.ver.outputs.version }}" \
+            --notes-file release-notes.md \
+            --target "${{ github.sha }}" \
+            irobot_advanced.zip
+          echo "Published HA IRobot Advance ${{ steps.ver.outputs.version }}"
