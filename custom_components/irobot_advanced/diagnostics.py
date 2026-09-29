@@ -16,6 +16,7 @@ from .const import (
     DOMAIN,
 )
 from .coordinator import IRobotCoordinator
+from .log_buffer import async_get_log_snapshot
 
 REDACT_CONFIG = {
     CONF_ROBOT_PASSWORD,
@@ -47,6 +48,11 @@ async def async_get_config_entry_diagnostics(
 
     return {
         "entry": async_redact_data(dict(entry.data), REDACT_CONFIG),
+        # Recent log messages and errors from the integration, so a bug report
+        # carries the trail that led to a problem. Free-text log lines are
+        # scrubbed of known secret values, since key-based redaction cannot
+        # reach an identifier embedded in a message string.
+        "logs": _scrub_logs(async_get_log_snapshot(hass), _secret_values(entry)),
         "options": async_redact_data(dict(entry.options), REDACT_CONFIG),
         "local": {
             "connected": coordinator.local.connected,
@@ -88,6 +94,49 @@ async def async_get_config_entry_diagnostics(
             "svc_endpoint_names": _svc_endpoint_names(coordinator),
         },
     }
+
+
+def _secret_values(entry: ConfigEntry) -> list[str]:
+    """Collect secret strings that may appear verbatim inside log messages."""
+    secret_keys = (
+        CONF_BLID,
+        CONF_ROBOT_PASSWORD,
+        CONF_CLOUD_USERNAME,
+        CONF_CLOUD_PASSWORD,
+        "host",
+        "hostname",
+    )
+    values: list[str] = []
+    for source in (entry.data, entry.options):
+        for key in secret_keys:
+            value = source.get(key)
+            # Only scrub reasonably long, distinctive values -- a 1-2 char host
+            # fragment would clobber unrelated text.
+            if isinstance(value, str) and len(value) >= 4:
+                values.append(value)
+    # Longest first so a value that contains another is masked before its
+    # substring turns into "**REDACTED**".
+    return sorted(set(values), key=len, reverse=True)
+
+
+def _scrub_logs(snapshot: dict[str, Any], secrets: list[str]) -> dict[str, Any]:
+    """Replace known secret values inside captured log text."""
+    if not secrets:
+        return snapshot
+
+    def _scrub_entry(entry: dict[str, Any]) -> dict[str, Any]:
+        scrubbed = dict(entry)
+        for field in ("message", "exception"):
+            text = scrubbed.get(field)
+            if isinstance(text, str):
+                for secret in secrets:
+                    text = text.replace(secret, "**REDACTED**")
+                scrubbed[field] = text
+        return scrubbed
+
+    snapshot["errors"] = [_scrub_entry(e) for e in snapshot.get("errors", [])]
+    snapshot["recent"] = [_scrub_entry(e) for e in snapshot.get("recent", [])]
+    return snapshot
 
 
 def _svc_endpoint_names(coordinator: IRobotCoordinator) -> Any:

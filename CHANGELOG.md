@@ -20,6 +20,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the stream actually plays. Until this lands the project stays on `0.x`.
 - Replace heuristic UMF layer parsing once enough map samples are available.
 
+## [0.6.10] — 2026-09-29
+
+### Added
+
+- **Logs and errors in the diagnostics download.** The integration now keeps a
+  bounded in-memory ring buffer of its own recent log records (the last ~300
+  messages, plus the last 50 errors kept separately) and includes them in
+  *Settings → Devices & Services → iRobot Advanced → Download Diagnostics*
+  under a new `logs` section. This means a bug report carries the trail of
+  messages that led to a problem — including setup-time errors — without the
+  user having to dig through Home Assistant's system log. The capture starts as
+  soon as the first robot is set up and adds no noise to the main HA log (it
+  only records what the integration already emits). Free-text log lines are
+  scrubbed of known secret values (robot password, cloud credentials, BLID,
+  host) before they leave the buffer, since the existing key-based redaction
+  cannot reach an identifier embedded in a message string.
+
 ## [0.6.9] — 2026-09-29
 
 ### Fixed
