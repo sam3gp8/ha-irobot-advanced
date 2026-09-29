@@ -20,6 +20,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the stream actually plays. Until this lands the project stays on `0.x`.
 - Replace heuristic UMF layer parsing once enough map samples are available.
 
+## [0.6.11] — 2026-09-29
+
+### Changed
+
+- **Clearer local-connection failure messages.** When the robot refuses the
+  local MQTT session, the log now decodes the MQTT return code into its cause
+  instead of a bare `rc=2`. Because an iRobot robot accepts only one local
+  connection at a time (keyed on the BLID), the most common refusal — `rc=2`,
+  identifier rejected, with the accompanying `rc=5` disconnect loop — now says
+  so explicitly: another client (the iRobot app, or a second Roomba integration
+  such as `roomba_rest980` / `rest980` / `dorita980` pointing at the same robot)
+  is holding the slot. Credential refusals (`rc=4` / `rc=5`) point at re-running
+  the password exchange. This is a diagnostics/logging improvement only — it
+  does not change how the connection is made — and it pairs with the log capture
+  added in 0.6.10 so the diagnostics download explains an "all entities
+  unavailable" robot on its own.
+
 ## [0.6.10] — 2026-09-29
 
 ### Added
