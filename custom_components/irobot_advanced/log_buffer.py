@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import logging
 from collections import deque
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from homeassistant.core import HomeAssistant, callback
@@ -50,7 +50,7 @@ class _RingBufferHandler(logging.Handler):
         try:
             entry: dict[str, Any] = {
                 "time": datetime.fromtimestamp(
-                    record.created, tz=timezone.utc
+                    record.created, tz=UTC
                 ).isoformat(),
                 "level": record.levelname,
                 "logger": record.name,
@@ -58,7 +58,7 @@ class _RingBufferHandler(logging.Handler):
             }
             if record.exc_info:
                 entry["exception"] = _EXC_FORMATTER.formatException(record.exc_info)
-        except Exception:  # noqa: BLE001 - logging must never raise
+        except Exception:  # logging must never raise
             return
         self.records.append(entry)
         if record.levelno >= logging.ERROR:

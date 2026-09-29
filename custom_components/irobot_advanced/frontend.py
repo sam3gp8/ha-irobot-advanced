@@ -42,7 +42,7 @@ async def async_register_frontend(hass: HomeAssistant) -> None:
     """
     try:
         await _async_register_frontend(hass)
-    except Exception:  # noqa: BLE001 - never let the card break the robot
+    except Exception:  # never let the card break the robot
         _LOGGER.exception(
             "Failed to register the iRobot dashboard card/panel; the robot "
             "entities are unaffected"
